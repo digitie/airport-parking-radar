@@ -148,12 +148,13 @@ docker compose up -d frontend
 - 5분 주기: 하루 `288`회라서 반복 장애 가능성이 높다.
 - 10분 주기: 하루 `144`회라서 여전히 반복될 가능성이 높다.
 - 15분 주기: 하루 `96`회지만 수동 수집이나 재기동 여유가 작다.
-- 20분 주기: 하루 `72`회라서 운영 여유가 더 크다.
+- 10분 주기: 하루 `144`회로, 모든 공항을 한 번의 응답에서 처리하는 현재 구조에서는 가장 공격적이면서도 현실적인 기본값이다.
+- 5분 주기: 하루 `288`회라서 예전에 중복 수집기까지 겹친 상황의 실패 구간과 너무 가까워 기본 운영값으로는 보수적이지 않다.
 
 권장 대응:
 
-- ODROID live는 `COLLECT_INTERVAL_SECONDS=1200`
-- 수동 수집 제한도 `MANUAL_COLLECT_MIN_INTERVAL_SECONDS=1200`
+- ODROID live는 `COLLECT_INTERVAL_SECONDS=600`
+- 수동 수집 제한도 `MANUAL_COLLECT_MIN_INTERVAL_SECONDS=600`
 - 제한이 걸린 당일에는 주기를 바꿔도 즉시 회복되지 않을 수 있고, 다음 쿼터 리셋 이후부터 효과가 난다.
 - `collector-status`에서 `upstream_rate_limited=true`와 `upstream_rate_limited_until`을 확인한다.
 - 같은 인증키를 쓰는 다른 live 검증 스택이 떠 있지 않은지 먼저 확인한다.

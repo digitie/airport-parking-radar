@@ -155,7 +155,7 @@ row-level `collected_at`은 백엔드에 남아 있지만, 메인 UI에서는 �
 
 실패 시 예시:
 
-- `마지막 업데이트 후 20분이 지나지 않았습니다. 04.26 20:49 KST 이후 다시 시도해 주세요.`
+- `마지막 업데이트 후 10분이 지나지 않았습니다. 04.26 20:49 KST 이후 다시 시도해 주세요.`
 
 ## 7. 스케줄러와 중복 저장
 
@@ -184,7 +184,7 @@ row-level `collected_at`은 백엔드에 남아 있지만, 메인 UI에서는 �
 - 이때는 `UPSTREAM_RATE_LIMIT_BACKOFF_SECONDS` 동안만 수집기가 자동으로 API 호출을 건너뛴다.
 - 같은 인증키를 쓰는 live 수집기는 동시에 하나만 유지한다.
 - `2026-04-30` 기준 ODROID에는 별도 프로젝트 `airport-parking-monitor`의 `parking-collector.timer`가 10분마다 같은 키로 `GMP,PUS,CJU,TAE`를 호출하고 있었고, 현재는 중지했다.
-- 현재 ODROID `parking-radar`는 `CJJ,CJU,GMP,HIN,KUV,KWJ,MWX,PUS,RSU,TAE,USN,WJU,YNY`를 20분마다 1회 응답에서 함께 처리하도록 설정한다.
+- 현재 ODROID `parking-radar`는 `CJJ,CJU,GMP,HIN,KUV,KWJ,MWX,PUS,RSU,TAE,USN,WJU,YNY`를 10분마다 1회 응답에서 함께 처리하도록 설정한다.
 
 ## 8. 프론트엔드 동작 기준
 
@@ -293,4 +293,4 @@ row-level `collected_at`은 백엔드에 남아 있지만, 메인 UI에서는 �
 - 샘플 시계열은 `client_mode=sample` 개발 모드에서만 시드한다.
 - live 환경 DB에서 `collection_run_id is null` row는 샘플 스냅샷 가능성이 높으므로, 시계열이 이상하게 길어지면 먼저 이 조건을 확인한다.
 - `15056803` 카탈로그에는 개발계정 `5,000` 트래픽이 보이지만, `2026-04-28` 실측에서는 100회 성공 후 101번째부터 `LIMITED NUMBER OF SERVICE REQUESTS EXCEEDS ERROR.`가 발생했다.
-- 그래서 현재 ODROID live 프로파일은 5분이나 10분이 아니라 20분 주기와 20분 수동 수집 제한을 사용한다.
+- 중복 수집기를 제거한 현재 기준으로는 ODROID live 프로파일이 10분 주기와 10분 수동 수집 제한을 사용한다.

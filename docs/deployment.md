@@ -20,8 +20,8 @@ docker compose up -d
 ENABLE_SCHEDULER=true
 SEED_SAMPLE_DATA=false
 USE_SAMPLE_CLIENT_WHEN_NO_KEY=false
-COLLECT_INTERVAL_SECONDS=1200
-MANUAL_COLLECT_MIN_INTERVAL_SECONDS=1200
+COLLECT_INTERVAL_SECONDS=600
+MANUAL_COLLECT_MIN_INTERVAL_SECONDS=600
 UPSTREAM_RATE_LIMIT_BACKOFF_SECONDS=3600
 DATA_GO_KR_SERVICE_KEY=...
 ```
@@ -29,20 +29,20 @@ DATA_GO_KR_SERVICE_KEY=...
 설명:
 
 - `ENABLE_SCHEDULER=true`
-  - 20분 주기 자동 수집
+  - 10분 주기 자동 수집
 - `SEED_SAMPLE_DATA=false`
   - live 운영에서는 샘플 시계열을 다시 넣지 않도록 유지
 - `USE_SAMPLE_CLIENT_WHEN_NO_KEY=false`
   - 인증키가 없을 때 샘플로 조용히 떨어지지 않도록 강제
-- `COLLECT_INTERVAL_SECONDS=1200`
-  - 20분
-- `MANUAL_COLLECT_MIN_INTERVAL_SECONDS=1200`
-  - 수동 수집도 20분 제한
+- `COLLECT_INTERVAL_SECONDS=600`
+  - 10분
+- `MANUAL_COLLECT_MIN_INTERVAL_SECONDS=600`
+  - 수동 수집도 10분 제한
 
 - `client_mode=live` 상태에서는 `SEED_SAMPLE_DATA=false`를 기본값으로 사용한다.
 - 샘플 시드가 필요하면 `client_mode=sample`에서만 켠다.
 - `15056803` 카탈로그의 개발계정 트래픽 표기와 별개로, ODROID 실측에서는 100회 성공 후 101번째부터 제한 에러가 재현됐다.
-- 그래서 ODROID live와 local live 검증 스택은 10분이 아니라 20분 주기를 기본값으로 둔다.
+- 중복 수집기를 제거한 현재 기준으로는 ODROID live와 local live 검증 스택의 기본값을 10분 주기로 둔다.
 - 같은 인증키를 쓰는 live 수집기는 동시에 하나만 유지한다.
 - live 수집기가 한도 초과를 감지하면 `UPSTREAM_RATE_LIMIT_BACKOFF_SECONDS` 동안 API 호출을 건너뛴다.
 - `15056803` 공식 문서상 개발계정 트래픽은 `5,000/일`이지만, 실제 운영에서는 더 이르게 `LIMITED NUMBER OF SERVICE REQUESTS EXCEEDS ERROR.`가 발생할 수 있다.
