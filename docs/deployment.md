@@ -51,6 +51,12 @@ DATA_GO_KR_SERVICE_KEY=...
 - ODROID에는 `parking-radar` 외 별도 수집기(`airport-parking-monitor`)를 동시에 띄우지 않는다.
 - 특히 `parking-collector.timer`가 살아 있으면 10분마다 `GMP,PUS,CJU,TAE`를 추가 호출해 같은 인증키를 소모한다.
 
+임시 운영 예약:
+
+- `2026-05-01` 기준 ODROID의 `UPSTREAM_RATE_LIMIT_BACKOFF_SECONDS`를 `409567`로 임시 변경해 다음 원 API 재시도를 `2026-05-06 00:00:00 KST` 이후로 미뤘다.
+- `parking-radar-restore-backoff.timer`가 `2026-05-05 06:00:00 KST`에 실행되어 `.env.odroid`의 backoff 값을 `3600`으로 되돌리고 backend 컨테이너를 재생성한다.
+- 예약 로그는 ODROID의 `/home/digitie/apps/parking-radar/logs/restore-backoff-20260505.log`에 남긴다.
+
 ## ODROID M1S 배포 파일
 
 - 운영용 compose: [docker-compose.odroid.yml](</C:/Users/digit/OneDrive/문서/New project/docker-compose.odroid.yml>)

@@ -152,6 +152,7 @@ docker compose up -d frontend
 - 같은 시각 ODROID에서 앱을 거치지 않고 `15056803` 원 API를 직접 호출해도 `LIMITED NUMBER OF SERVICE REQUESTS EXCEEDS ERROR.`가 반환됐다.
 - 이 경우 화면의 제한 메시지는 프론트/백엔드 가공 오류가 아니라 원 API의 키 단위 제한 응답이다.
 - `2026-05-01` 확인 기준 ODROID에서 활성화된 수집 실행원은 `parking-radar_backend_1`뿐이다. `parking-collector.timer`는 `.disabled` 상태이고 사용자/root cron에서도 추가 수집기는 발견되지 않았다.
+- 임시로 ODROID의 다음 원 API 재시도를 `2026-05-06 00:00:00 KST` 이후로 미뤘고, `2026-05-05 06:00:00 KST`에 `parking-radar-restore-backoff.timer`가 backoff 값을 `3600`으로 되돌리도록 예약했다.
 
 판단 기준:
 
