@@ -193,3 +193,5 @@ curl -X POST http://localhost:8000/admin/collect
 - 로컬 개발과 테스트의 기준 환경은 `WSL2 + Docker`이다.
 - Windows PowerShell은 `deploy-odroid.ps1` 같은 배포 스크립트 실행과 상태 확인에 사용한다.
 - 테스트 합격 기준은 `WSL2`에서 실행한 컨테이너 테스트 결과를 따른다.
+- 단, ODROID live 장애 조사와 운영 복구는 ODROID만 대상으로 한다.
+- 사용자가 명시하지 않으면 WSL2에서 실행 중인 다른 프로젝트의 컨테이너, 타이머, 프로세스는 점검하거나 변경하지 않는다.

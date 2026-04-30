@@ -137,11 +137,21 @@ docker compose up -d frontend
 2. 최근 `collection_runs` 실패 시작 시각
 3. 오늘 성공한 수집 횟수
 
+운영 범위 주의:
+
+- ODROID live 장애를 조사할 때는 WSL2 컨테이너와 프로세스를 건드리지 않는다.
+- WSL2는 로컬 개발/테스트 기준 환경일 뿐이며, 사용자가 명시하지 않으면 ODROID live 수집 장애의 원인 조사 범위에서 제외한다.
+- ODROID live의 중복 호출 여부는 ODROID의 `docker ps`, `systemctl list-timers`, `systemctl list-unit-files`, `crontab`, `journalctl` 기준으로 확인한다.
+
 현재 운영 메모:
 
 - `15056803` 카탈로그에는 개발계정 `5,000` 트래픽이 보인다.
 - 하지만 ODROID 실측에서는 `2026-04-28`에 100회 성공 후 101번째부터 제한 에러가 발생했다.
 - 따라서 현재 키/서비스 조합에서는 문서상 5,000/day보다 더 낮은 실효 제한이 걸린 것으로 보고 운영한다.
+- `2026-05-01 06:13:53 KST` ODROID에서 앱이 자동 재시도했지만 원 API가 다시 `resultCode=99`를 반환했다.
+- 같은 시각 ODROID에서 앱을 거치지 않고 `15056803` 원 API를 직접 호출해도 `LIMITED NUMBER OF SERVICE REQUESTS EXCEEDS ERROR.`가 반환됐다.
+- 이 경우 화면의 제한 메시지는 프론트/백엔드 가공 오류가 아니라 원 API의 키 단위 제한 응답이다.
+- `2026-05-01` 확인 기준 ODROID에서 활성화된 수집 실행원은 `parking-radar_backend_1`뿐이다. `parking-collector.timer`는 `.disabled` 상태이고 사용자/root cron에서도 추가 수집기는 발견되지 않았다.
 
 판단 기준:
 

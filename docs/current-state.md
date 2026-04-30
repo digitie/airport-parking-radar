@@ -185,6 +185,9 @@ row-level `collected_at`은 백엔드에 남아 있지만, 메인 UI에서는 �
 - 같은 인증키를 쓰는 live 수집기는 동시에 하나만 유지한다.
 - `2026-04-30` 기준 ODROID에는 별도 프로젝트 `airport-parking-monitor`의 `parking-collector.timer`가 10분마다 같은 키로 `GMP,PUS,CJU,TAE`를 호출하고 있었고, 현재는 중지했다.
 - 현재 ODROID `parking-radar`는 `CJJ,CJU,GMP,HIN,KUV,KWJ,MWX,PUS,RSU,TAE,USN,WJU,YNY`를 10분마다 1회 응답에서 함께 처리하도록 설정한다.
+- `2026-05-01 06:13:53 KST` ODROID에서 자동 재시도했지만 원 API가 다시 `resultCode=99`를 반환했다.
+- 같은 시각 ODROID에서 원 API를 직접 호출해도 동일한 99 응답이 반환되어, 최신 데이터가 `2026-04-28 17:18:02 KST`에 멈춘 직접 원인은 앱 내부 중단이 아니라 원 API의 키 제한 상태로 본다.
+- `2026-05-01` 확인 기준 ODROID의 활성 중복 수집기는 발견되지 않았다. 운영 장애 조사 시 WSL2는 별도 개발/테스트 환경으로 보고, 사용자가 명시하지 않으면 건드리지 않는다.
 
 ## 8. 프론트엔드 동작 기준
 
