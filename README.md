@@ -103,6 +103,7 @@ DATA_GO_KR_SERVICE_KEY=...
 - 샘플 시계열은 `client_mode=sample`에서만 시드한다.
 - `15056803` 카탈로그에는 개발계정 `5,000` 트래픽이 보이지만, ODROID 실측에서는 `2026-04-28`에 100회 성공 후 101번째부터 `LIMITED NUMBER OF SERVICE REQUESTS EXCEEDS ERROR.`가 발생했다.
 - 그래서 ODROID live 프로파일은 10분이 아니라 20분(`1200초`) 주기와 20분 수동 수집 제한으로 운영한다.
+- ODROID live는 `CJJ,CJU,GMP,HIN,KUV,KWJ,MWX,PUS,RSU,TAE,USN,WJU,YNY`를 같은 20분 주기 응답에서 함께 처리한다.
 - 같은 인증키를 쓰는 live 수집기는 동시에 하나만 유지한다.
 - 빠른 검증용 live 스택을 잠깐 띄웠다면 검증 직후 반드시 내려야 한다.
 - 수집기가 한도 초과를 감지하면 `UPSTREAM_RATE_LIMIT_BACKOFF_SECONDS` 동안 API 호출을 잠시 건너뛰고, `collector-status`에 `upstream_rate_limited=true`와 `upstream_rate_limited_until`을 남긴다.

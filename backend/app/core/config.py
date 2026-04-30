@@ -26,7 +26,7 @@ class Settings(BaseSettings):
     data_go_kr_service_key: str | None = None
     enable_incheon_collection: bool = False
     enable_fee_collection: bool = False
-    airport_codes_csv: str = "GMP,PUS,CJU"
+    airport_codes_csv: str = "CJJ,CJU,GMP,HIN,KUV,KWJ,MWX,PUS,RSU,TAE,USN,WJU,YNY"
     cors_origins_csv: str = "http://localhost:3000"
     api_prefix: str = ""
     use_sample_client_when_no_key: bool = True

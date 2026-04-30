@@ -184,6 +184,7 @@ row-level `collected_at`은 백엔드에 남아 있지만, 메인 UI에서는 �
 - 이때는 `UPSTREAM_RATE_LIMIT_BACKOFF_SECONDS` 동안만 수집기가 자동으로 API 호출을 건너뛴다.
 - 같은 인증키를 쓰는 live 수집기는 동시에 하나만 유지한다.
 - `2026-04-30` 기준 ODROID에는 별도 프로젝트 `airport-parking-monitor`의 `parking-collector.timer`가 10분마다 같은 키로 `GMP,PUS,CJU,TAE`를 호출하고 있었고, 현재는 중지했다.
+- 현재 ODROID `parking-radar`는 `CJJ,CJU,GMP,HIN,KUV,KWJ,MWX,PUS,RSU,TAE,USN,WJU,YNY`를 20분마다 1회 응답에서 함께 처리하도록 설정한다.
 
 ## 8. 프론트엔드 동작 기준
 
