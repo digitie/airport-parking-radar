@@ -50,6 +50,20 @@ const currentPayload: ParkingCurrentResponse = {
   ],
 };
 
+const refreshedCurrentPayload: ParkingCurrentResponse = {
+  ...currentPayload,
+  generated_at: "2026-04-26T00:01:00.000Z",
+  items: [
+    {
+      ...currentPayload.items[0],
+      observed_at: "2026-04-26T00:01:00.000Z",
+      collected_at: "2026-04-26T00:11:00.000Z",
+      occupied_spaces: 136,
+      available_spaces: 64,
+    },
+  ],
+};
+
 const timeSeriesPayload: ParkingTimeSeriesResponse = {
   generated_at: "2026-04-26T00:00:00.000Z",
   airport_code: "GMP",
@@ -174,5 +188,20 @@ describe("DashboardApp", () => {
     expect(
       await screen.findByText("마지막 업데이트 후 20분이 지나지 않았습니다. 04.26 09:30 KST 이후 다시 시도해 주세요.")
     ).toBeInTheDocument();
+  });
+
+  test("refreshes dashboard data automatically without a page reload", async () => {
+    apiClient.getCurrent.mockResolvedValueOnce(currentPayload).mockResolvedValueOnce(refreshedCurrentPayload);
+
+    render(<DashboardApp apiBaseUrl="http://localhost:8000" autoRefreshIntervalMs={20} />);
+
+    await screen.findByTestId("history-chart");
+    expect(apiClient.getCurrent).toHaveBeenCalledTimes(1);
+
+    await waitFor(() => {
+      expect(apiClient.getCurrent.mock.calls.length).toBeGreaterThanOrEqual(2);
+    });
+    expect(screen.getAllByText("64대").length).toBeGreaterThan(0);
+    expect(screen.queryByText("데이터를 불러오는 중입니다.")).not.toBeInTheDocument();
   });
 });

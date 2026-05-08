@@ -1,6 +1,6 @@
 "use client";
 
-import { startTransition, useEffect, useMemo, useState } from "react";
+import { startTransition, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { DashboardScreen } from "@/components/dashboard-screen";
 import { FeeCalculator } from "@/components/fee-calculator";
@@ -22,7 +22,10 @@ import type {
 
 type DashboardAppProps = {
   apiBaseUrl?: string;
+  autoRefreshIntervalMs?: number;
 };
+
+const DASHBOARD_AUTO_REFRESH_INTERVAL_MS = 60_000;
 
 function useViewportMode() {
   const [isMobile, setIsMobile] = useState(false);
@@ -48,8 +51,13 @@ function buildCollectorCooldownMessage(status: CollectorStatusResponse): string 
   return `마지막 업데이트 후 ${cooldownMinutes}분이 지나지 않았습니다. 잠시 후 다시 시도해 주세요.`;
 }
 
-export function DashboardApp({ apiBaseUrl }: DashboardAppProps) {
+export function DashboardApp({
+  apiBaseUrl,
+  autoRefreshIntervalMs = DASHBOARD_AUTO_REFRESH_INTERVAL_MS,
+}: DashboardAppProps) {
   const api = useMemo(() => buildApiClient(apiBaseUrl), [apiBaseUrl]);
+  const mountedRef = useRef(false);
+  const loadRequestIdRef = useRef(0);
   const isMobile = useViewportMode();
   const [airports, setAirports] = useState<Airport[]>([]);
   const [selectedAirportCode, setSelectedAirportCode] = useState("");
@@ -66,32 +74,60 @@ export function DashboardApp({ apiBaseUrl }: DashboardAppProps) {
   const [actionMessage, setActionMessage] = useState<string | null>(null);
   const [actionMessageIsError, setActionMessageIsError] = useState(false);
 
-  async function loadAirportData(airportCode: string, parkingLotId: number | null = null) {
-    setLoading(true);
-    setError(null);
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
 
-    try {
-      const [current, thresholds, thresholdDetail, weekdayHourly, timeseries, status] = await Promise.all([
-        api.getCurrent(airportCode),
-        api.getThresholdEvents(airportCode, parkingLotId),
-        api.getThresholdInsights(airportCode, { parkingLotId }),
-        api.getByWeekdayHour(airportCode, parkingLotId),
-        api.getTimeSeries(airportCode, { parkingLotId }),
-        api.getCollectorStatus(),
-      ]);
-      setCurrentItems(current.items);
-      setThresholdEvents(thresholds);
-      setThresholdInsights(thresholdDetail);
-      setWeekdayHourlyPatterns(weekdayHourly);
-      setTimeSeries(timeseries);
-      setCollectorStatus(status);
-    } catch (caughtError) {
-      setActionMessageIsError(true);
-      setError(caughtError instanceof Error ? caughtError.message : "대시보드 데이터를 불러오지 못했습니다.");
-    } finally {
-      setLoading(false);
-    }
-  }
+  const loadAirportData = useCallback(
+    async (
+      airportCode: string,
+      parkingLotId: number | null = null,
+      options: { showLoading?: boolean } = {}
+    ) => {
+      const requestId = loadRequestIdRef.current + 1;
+      loadRequestIdRef.current = requestId;
+      const showLoading = options.showLoading ?? true;
+
+      if (showLoading) {
+        setLoading(true);
+      }
+      setError(null);
+
+      try {
+        const [current, thresholds, thresholdDetail, weekdayHourly, timeseries, status] = await Promise.all([
+          api.getCurrent(airportCode),
+          api.getThresholdEvents(airportCode, parkingLotId),
+          api.getThresholdInsights(airportCode, { parkingLotId }),
+          api.getByWeekdayHour(airportCode, parkingLotId),
+          api.getTimeSeries(airportCode, { parkingLotId }),
+          api.getCollectorStatus(),
+        ]);
+        if (!mountedRef.current || loadRequestIdRef.current !== requestId) {
+          return;
+        }
+        setCurrentItems(current.items);
+        setThresholdEvents(thresholds);
+        setThresholdInsights(thresholdDetail);
+        setWeekdayHourlyPatterns(weekdayHourly);
+        setTimeSeries(timeseries);
+        setCollectorStatus(status);
+      } catch (caughtError) {
+        if (!mountedRef.current || loadRequestIdRef.current !== requestId) {
+          return;
+        }
+        setActionMessageIsError(true);
+        setError(caughtError instanceof Error ? caughtError.message : "대시보드 데이터를 불러오지 못했습니다.");
+      } finally {
+        if (mountedRef.current && loadRequestIdRef.current === requestId && showLoading) {
+          setLoading(false);
+        }
+      }
+    },
+    [api]
+  );
 
   useEffect(() => {
     let active = true;
@@ -138,7 +174,30 @@ export function DashboardApp({ apiBaseUrl }: DashboardAppProps) {
     return () => {
       active = false;
     };
-  }, [api]);
+  }, [api, loadAirportData]);
+
+  useEffect(() => {
+    if (!selectedAirportCode) {
+      return;
+    }
+
+    function refreshVisibleDashboard() {
+      if (document.visibilityState === "hidden") {
+        return;
+      }
+      void loadAirportData(selectedAirportCode, selectedParkingLotId, { showLoading: false });
+    }
+
+    const refreshTimer = window.setInterval(refreshVisibleDashboard, autoRefreshIntervalMs);
+    window.addEventListener("focus", refreshVisibleDashboard);
+    document.addEventListener("visibilitychange", refreshVisibleDashboard);
+
+    return () => {
+      window.clearInterval(refreshTimer);
+      window.removeEventListener("focus", refreshVisibleDashboard);
+      document.removeEventListener("visibilitychange", refreshVisibleDashboard);
+    };
+  }, [autoRefreshIntervalMs, loadAirportData, selectedAirportCode, selectedParkingLotId]);
 
   useEffect(() => {
     if (!selectedAirportCode) {
