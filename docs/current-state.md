@@ -251,7 +251,7 @@ row-level `collected_at`은 백엔드에 남아 있지만, 메인 UI에서는 �
 
 배포 대상 기본값:
 
-- IP: `192.168.1.204`
+- IP: `192.168.1.13`
 - 사용자: `digitie`
 - 앱 경로: `/home/digitie/apps/parking-radar`
 

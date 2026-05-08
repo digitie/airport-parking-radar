@@ -77,7 +77,7 @@ DATA_GO_KR_SERVICE_KEY=...
 
 기본 저장 정보:
 
-- `ODROID_HOST=192.168.1.204`
+- `ODROID_HOST=192.168.1.13`
 - `ODROID_USER=digitie`
 - `ODROID_APP_DIR=/home/digitie/apps/parking-radar`
 - `PUBLIC_WEB_PORT=3000`

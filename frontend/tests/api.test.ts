@@ -26,14 +26,14 @@ describe("api client", () => {
     vi.stubGlobal("fetch", fetchMock);
     Object.defineProperty(window, "location", {
       configurable: true,
-      value: new URL("http://192.168.1.204:3000/"),
+      value: new URL("http://192.168.1.13:3000/"),
     });
 
     const client = buildApiClient();
     await client.getCurrent("GMP");
 
     expect(fetchMock).toHaveBeenCalledWith(
-      "http://192.168.1.204:8000/parking/current?airport_code=GMP",
+      "http://192.168.1.13:8000/parking/current?airport_code=GMP",
       expect.objectContaining({ cache: "no-store" })
     );
   });

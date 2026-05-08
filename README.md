@@ -68,7 +68,7 @@ docker compose up -d
 
 배포 기준 정보는 루트의 [.env.odroid](</F:/dev/parking-radar/.env.odroid>)에 저장한다.
 
-- 대상 IP: `192.168.1.204`
+- 대상 IP: `192.168.1.13`
 - 사용자: `digitie`
 - 앱 디렉터리: `/home/digitie/apps/parking-radar`
 

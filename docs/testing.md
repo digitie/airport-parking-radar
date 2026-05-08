@@ -190,9 +190,9 @@ in-app browser 또는 브라우저에서 다음을 확인한다.
 
 배포 후에는 최소한 아래를 확인한다.
 
-- `http://192.168.1.204:3000` 응답
-- `http://192.168.1.204:18000/health` 응답
-- `http://192.168.1.204:18000/admin/collector-status`에서
+- `http://192.168.1.13:3000` 응답
+- `http://192.168.1.13:18000/health` 응답
+- `http://192.168.1.13:18000/admin/collector-status`에서
   - `client_mode=live`
   - `scheduler_enabled=true`
   - `upstream_rate_limited=false`
