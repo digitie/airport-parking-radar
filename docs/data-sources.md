@@ -21,20 +21,88 @@
 - 용도:
   - 인천공항 주차장 현황 수집
   - 인천공항은 혼잡도/잔여 면수 조회에는 포함
-  - 인천공항 요금 계산은 현재 미지원
+  - `parking`, `parkingarea`, `floor`, `datetm` 형태의 응답을 파싱
+  - `datetm`은 `yyyyMMddHHmmss.SSS` 형태로 내려올 수 있어 KST 관측 시각으로 해석한 뒤 UTC로 저장
+- 운영 주의:
+  - `.env` 또는 `.env.odroid`에서 `ENABLE_INCHEON_COLLECTION=true`여야 한다.
+  - `AIRPORT_CODES_CSV`에 `ICN`이 빠져 있으면 인천공항은 대시보드/수집 대상에서 빠진다.
+  - 한국공항공사 `15056803`이 한도 초과 상태여도 인천 전용 API는 별도 기관 API이므로 계속 시도한다.
 
-## 4. 한국공항공사 전국공항 주차요금
+## 4. 인천국제공항공사 주차요금 정보
+
+- 출처: [https://www.data.go.kr/data/15095053/openapi.do](https://www.data.go.kr/data/15095053/openapi.do)
+- 용도:
+  - 인천공항 주차요금 계산
+  - `charid`, `chardesc`, `datetime` 형태의 응답을 요금 규칙으로 변환
+- 현재 매핑:
+  - `FB00000001`, `NF00000001`: T1/T2 단기주차장
+  - `FB00000002`, `NF00000002`: T1/T2 장기주차장
+  - `FB00000003`, `NF00000003`: T1/T2 예약주차장
+- 운영 주의:
+  - `ENABLE_INCHEON_FEE_COLLECTION=true`일 때만 수집한다.
+  - 실시간 주차장 이름이 `T1 단기주차장지하1층`처럼 층 정보를 포함하면, 요금 규칙은 `T1 단기주차장` 접두어 기준으로 연결한다.
+
+## 5. 한국공항공사 전국공항 주차요금
 
 - 출처: [https://www.data.go.kr/data/15038474/openapi.do](https://www.data.go.kr/data/15038474/openapi.do)
 - 용도:
   - 한국공항공사 관리 공항의 주차요금 계산
   - 소형/대형, 평일/주말/공휴일 요금 규칙 저장
 
+## 6. 한국공항공사 실시간 항공편 운항 정보
+
+- 출처: [https://www.data.go.kr/data/15113771/openapi.do](https://www.data.go.kr/data/15113771/openapi.do)
+- 호출 URL: [https://api.odcloud.kr/api/FlightStatusListDTL/v1/getFlightStatusListDetail](https://api.odcloud.kr/api/FlightStatusListDTL/v1/getFlightStatusListDetail)
+- 용도:
+  - 선택 공항 기준 당일 출도착 비행편 조회
+  - 시계열 차트 X축에 비행편 시간 마커 표시
+  - 시간, 편명, 출발공항, 도착공항 표시
+- 현재 호출 방식:
+  - `cond[FLIGHT_DATE::EQ]=YYYYMMDD`
+  - `cond[AIRPORT::EQ]=GMP` 같은 공항 코드
+  - `page=1`, `perPage=1000`, `returnType=JSON`
+- 현재 파싱 필드:
+  - `AIR_FLN`
+  - `AIRLINE_KOREAN`
+  - `BOARDING_KOR`
+  - `ARRIVED_KOR`
+  - `FLIGHT_DATE`
+  - `STD`
+  - `ETD`
+  - `IO`
+  - `LINE`
+  - `RMK_KOR`
+- 주차 현황 수집과 별개로 조회하며 `parking_snapshots`에는 저장하지 않는다.
+- 백엔드는 `/flights/status`에서 응답을 정규화해 프론트에 전달한다.
+
+## 7. 인천국제공항공사 여객기 운항 정보
+
+- 출처: [https://www.data.go.kr/data/15112968/openapi.do](https://www.data.go.kr/data/15112968/openapi.do)
+- 사용 엔드포인트:
+  - `getPassengerArrivalsDeOdp`
+  - `getPassengerDeparturesDeOdp`
+- 용도:
+  - 인천공항(`ICN`) 선택 시 당일 출도착 비행편 조회
+  - 시계열 차트 X축에 시간, 편명, 출발공항, 도착공항 마커 표시
+- 현재 파싱 필드:
+  - `flightId`
+  - `airline`
+  - `airport`
+  - `scheduleDateTime`
+  - `estimatedDateTime`
+  - `remark`
+  - `typeOfFlight`
+- 주의:
+  - 도착편은 `airport -> 인천`, 출발편은 `인천 -> airport`로 정규화한다.
+  - 비행편 API는 주차 스냅샷 수집과 별개이며 `parking_snapshots`에는 저장하지 않는다.
+
 ## 수집 전략
 
 - 주차 현황 원본은 개발 기준으로 5분 주기 수집을 가정하지만, ODROID live 운영은 현재 중복 수집기 제거 후 10분 주기를 사용한다.
-- 기본 주기 수집은 `15056803` 기반 `kac_parking` 소스만 사용한다.
-- `15095047`, `15038474`는 별도 플래그를 켰을 때만 시도한다.
+- 기본 주기 수집은 `15056803` 기반 `kac_parking`을 사용하고, 설정에 따라 `incheon_parking`, `incheon_fee`, `kac_fee`를 함께 시도한다.
+- `15095047`, `15095053`, `15038474`는 별도 플래그를 켰을 때만 시도한다.
+- `kac_parking`이 한도 초과 상태이면 한국공항공사 주차/요금 소스는 건너뛰지만, 인천 전용 소스가 켜져 있으면 인천 주차/요금 수집은 계속 진행한다.
+- 비행편 API는 주기 수집 대상이 아니라 화면 조회 시 5분 캐시로 호출한다.
 - 원본 응답은 필요 시 추적할 수 있도록 저장한다.
 - 분석 화면에서는 원본 수집 데이터에서 30분 단위 시계열을 다시 계산해 사용한다.
 - 시계열 저장용 별도 테이블을 두기보다, 우선은 `parking_snapshots` 기반 집계를 사용한다.
@@ -44,13 +112,18 @@
 
 최종 수동 확인 기준:
 
-- `2026-04-26`
+- `2026-05-09`
 
 운영 메모:
 
 - 승인 직후에는 data.go.kr 활용신청 반영이 지연될 수 있다.
 - 따라서 "승인됨"과 "즉시 호출 가능"을 같은 뜻으로 보면 안 된다.
 - 수집원을 바꾸거나 플래그를 켜기 전에는 실제 호출 결과를 다시 확인한다.
+- `2026-05-09` 기준 현재 서비스 키로 `15095047` 인천 주차 정보는 `resultCode=00`, `NORMAL SERVICE.`를 반환했다.
+- `2026-05-09` 기준 현재 서비스 키로 `15095053` 인천 주차요금 정보는 `resultCode=00`을 반환했다.
+- `2026-05-09` 기준 현재 서비스 키로 `15112968` 인천 여객기 운항 정보의 도착/출발 엔드포인트는 모두 `resultCode=00`을 반환했다.
+- `2026-05-09` 기준 현재 서비스 키로 `15113771` 한국공항공사 실시간 항공운항 현황 정보 상세 조회 서비스는 정상 응답을 반환했다.
+- 기존 `15000126` 계열 `FlightStatusList/getFlightStatusList`는 현재 서비스 키로 `resultCode=99`, `SERVICE ACCESS DENIED ERROR.`가 반환되어 live 호출에서 사용하지 않는다.
 
 당시 기준 판단:
 
@@ -66,8 +139,18 @@
 - `15095047`
   - 인천공항 전용 소스
   - 기관이 달라 별도 접근 상태를 따로 본다
+- `15095053`
+  - 인천공항 요금 전용 소스
+  - 단기/장기/예약 주차장 접두어 기준으로 요금 규칙을 연결한다
+- `15112968`
+  - 인천공항 비행편 마커용 조회 소스
+  - 도착/출발 엔드포인트를 각각 호출해 하나의 응답으로 정규화한다
+- `15113771`
+  - 한국공항공사 공항 비행편 마커용 조회 소스
+  - ODCloud JSON API이며 날짜/공항 조건으로 필터링해서 사용한다
+  - 주차장 수집 제한과 분리해서 본다
 
 관련 문서:
 
-- [current-state.md](</C:/Users/digit/OneDrive/문서/New project/docs/current-state.md>)
-- [time-and-collector.md](</C:/Users/digit/OneDrive/문서/New project/docs/time-and-collector.md>)
+- [current-state.md](</F:/dev/parking-radar/docs/current-state.md>)
+- [time-and-collector.md](</F:/dev/parking-radar/docs/time-and-collector.md>)

@@ -2,7 +2,13 @@ from __future__ import annotations
 
 import json
 
-from app.services.parsers import parse_incheon_parking, parse_kac_congestion, parse_kac_fee, parse_kac_parking
+from app.services.parsers import (
+    parse_incheon_fee,
+    parse_incheon_parking,
+    parse_kac_congestion,
+    parse_kac_fee,
+    parse_kac_parking,
+)
 
 
 def test_parse_kac_congestion(fixtures_dir) -> None:
@@ -37,6 +43,58 @@ def test_parse_incheon_parking(fixtures_dir) -> None:
     assert parsed[0].airport_code == "ICN"
     assert parsed[0].lot_name == "T1 단기주차장"
     assert parsed[1].total_spaces == 910
+
+
+def test_parse_incheon_parking_accepts_live_timestamp_shape() -> None:
+    parsed = parse_incheon_parking(
+        {
+            "response": {
+                "body": {
+                    "items": [
+                        {
+                            "floor": "T1 단기주차장지하1층",
+                            "parking": "276",
+                            "parkingarea": "378",
+                            "datetm": "20260509060956.000",
+                        }
+                    ]
+                }
+            }
+        }
+    )
+
+    assert parsed[0].lot_name == "T1 단기주차장지하1층"
+    assert parsed[0].category == "short"
+    assert parsed[0].observed_at.isoformat() == "2026-05-08T21:09:00+00:00"
+
+
+def test_parse_incheon_fee_builds_short_and_long_rules() -> None:
+    parsed = parse_incheon_fee(
+        {
+            "response": {
+                "body": {
+                    "items": [
+                        {"charid": "FB00000001", "chardesc": "최초 00:30 에 한해 1200원 적용", "datetime": "202605080630"},
+                        {"charid": "FB00000001", "chardesc": "00:15 초과 시 600원 부과", "datetime": "202605080630"},
+                        {"charid": "FB00000002", "chardesc": "01:00 초과 시 1000원 부과", "datetime": "202605080630"},
+                        {"charid": "NF00000001", "chardesc": "일일 최대 24000원 적용", "datetime": "202605080630"},
+                        {"charid": "NF00000002", "chardesc": "일일 최대 9000원 적용", "datetime": "202605080630"},
+                    ]
+                }
+            }
+        }
+    )
+
+    short_rule = next(rule for rule in parsed if rule.parking_lot_name == "T1 단기주차장" and rule.day_type == "weekday")
+    long_rule = next(rule for rule in parsed if rule.parking_lot_name == "T1 장기주차장" and rule.day_type == "weekday")
+    assert short_rule.basic_minutes == 30
+    assert short_rule.basic_fee == 1200
+    assert short_rule.unit_minutes == 15
+    assert short_rule.unit_fee == 600
+    assert short_rule.daily_max_fee == 24000
+    assert long_rule.basic_minutes == 60
+    assert long_rule.basic_fee == 1000
+    assert long_rule.daily_max_fee == 9000
 
 
 def test_parse_kac_fee(fixtures_dir) -> None:

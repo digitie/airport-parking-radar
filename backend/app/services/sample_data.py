@@ -270,9 +270,6 @@ async def seed_sample_database(session: AsyncSession) -> None:
 
     fee_updated_at = now
     for airport in created_airports.values():
-        if airport.code == "ICN":
-            continue
-
         weekday_pairs = [("small", 30, 30, 1000, 15, 500, 20000), ("large", 30, 30, 1200, 15, 600, 25000)]
         holiday_pairs = [("small", 30, 30, 1500, 15, 700, 25000), ("large", 30, 30, 1800, 15, 800, 30000)]
 

@@ -80,7 +80,7 @@ export function FeeCalculator({ airports, initialAirportCode, onCalculate }: Fee
     <section className="panel-surface fee-panel">
       <div className="panel-head">
         <h3>주차요금 계산기</h3>
-        <p>인천공항은 현재 계산 미지원</p>
+        <p>공항별 공개 요금 기준</p>
       </div>
 
       <form className="fee-form" onSubmit={handleSubmit}>

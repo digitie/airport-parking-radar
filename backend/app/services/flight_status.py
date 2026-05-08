@@ -1,0 +1,650 @@
+from __future__ import annotations
+
+import json
+from dataclasses import dataclass
+from datetime import date, datetime, timedelta
+from typing import Any
+from xml.etree import ElementTree
+from zoneinfo import ZoneInfo
+
+import httpx
+
+from app.core.config import Settings
+from app.core.time_utils import now_utc, serialize_utc
+
+KAC_FLIGHT_STATUS_ENDPOINT = "http://openapi.airport.co.kr/service/rest/FlightStatusList/getFlightStatusList"
+KAC_FLIGHT_DETAIL_STATUS_ENDPOINT = "https://api.odcloud.kr/api/FlightStatusListDTL/v1/getFlightStatusListDetail"
+INCHEON_FLIGHT_ARRIVALS_ENDPOINT = "http://apis.data.go.kr/B551177/StatusOfPassengerFlightsDeOdp/getPassengerArrivalsDeOdp"
+INCHEON_FLIGHT_DEPARTURES_ENDPOINT = "http://apis.data.go.kr/B551177/StatusOfPassengerFlightsDeOdp/getPassengerDeparturesDeOdp"
+SUCCESS_RESULT_CODES = {"00", "0"}
+
+SAMPLE_FLIGHT_ITEMS: dict[str, list[dict[str, str]]] = {
+    "GMP": [
+        {
+            "airFln": "KE1101",
+            "airlineKorean": "대한항공",
+            "boardingKor": "김포",
+            "arrivedKor": "제주",
+            "io": "O",
+            "line": "국내",
+            "std": "0830",
+            "etd": "0840",
+            "rmkKor": "출발",
+        },
+        {
+            "airFln": "OZ8922",
+            "airlineKorean": "아시아나항공",
+            "boardingKor": "제주",
+            "arrivedKor": "김포",
+            "io": "I",
+            "line": "국내",
+            "std": "1015",
+            "etd": "1020",
+            "rmkKor": "도착",
+        },
+    ],
+    "PUS": [
+        {
+            "airFln": "BX8804",
+            "airlineKorean": "에어부산",
+            "boardingKor": "김해",
+            "arrivedKor": "김포",
+            "io": "O",
+            "line": "국내",
+            "std": "0910",
+            "etd": "0910",
+            "rmkKor": "출발",
+        },
+        {
+            "airFln": "7C505",
+            "airlineKorean": "제주항공",
+            "boardingKor": "제주",
+            "arrivedKor": "김해",
+            "io": "I",
+            "line": "국내",
+            "std": "1125",
+            "etd": "1128",
+            "rmkKor": "도착",
+        },
+    ],
+    "CJU": [
+        {
+            "airFln": "LJ501",
+            "airlineKorean": "진에어",
+            "boardingKor": "제주",
+            "arrivedKor": "김포",
+            "io": "O",
+            "line": "국내",
+            "std": "0745",
+            "etd": "0745",
+            "rmkKor": "출발",
+        },
+        {
+            "airFln": "KE1207",
+            "airlineKorean": "대한항공",
+            "boardingKor": "김포",
+            "arrivedKor": "제주",
+            "io": "I",
+            "line": "국내",
+            "std": "1240",
+            "etd": "1247",
+            "rmkKor": "도착",
+        },
+    ],
+    "ICN": [
+        {
+            "direction": "departure",
+            "airline": "대한항공",
+            "flightId": "KE901",
+            "scheduleDateTime": "202604250930",
+            "estimatedDateTime": "202604250945",
+            "airport": "파리/샤를드골",
+            "remark": "출발",
+            "typeOfFlight": "I",
+        },
+        {
+            "direction": "arrival",
+            "airline": "아시아나항공",
+            "flightId": "OZ202",
+            "scheduleDateTime": "202604251120",
+            "estimatedDateTime": "202604251128",
+            "airport": "로스앤젤레스",
+            "remark": "도착",
+            "typeOfFlight": "I",
+        },
+    ],
+}
+
+
+@dataclass(slots=True)
+class FlightSourceResponse:
+    source: str
+    endpoint: str
+    request_params: dict[str, Any]
+    status_code: int
+    body_text: str
+
+
+class FlightStatusClient:
+    async def fetch_status(self, airport_code: str, local_date: date) -> FlightSourceResponse:
+        raise NotImplementedError
+
+
+class FixtureFlightStatusClient(FlightStatusClient):
+    async def fetch_status(self, airport_code: str, local_date: date) -> FlightSourceResponse:
+        if airport_code.upper() == "ICN":
+            return FlightSourceResponse(
+                source="sample_incheon_flight_status",
+                endpoint=INCHEON_FLIGHT_DEPARTURES_ENDPOINT,
+                request_params={"airport_code": airport_code, "local_date": local_date.isoformat()},
+                status_code=200,
+                body_text=_build_sample_incheon_flight_json(),
+            )
+
+        return FlightSourceResponse(
+            source="sample_flight_status",
+            endpoint=KAC_FLIGHT_STATUS_ENDPOINT,
+            request_params={"schAirCode": airport_code},
+            status_code=200,
+            body_text=_build_sample_flight_xml(airport_code),
+        )
+
+
+class LiveFlightStatusClient(FlightStatusClient):
+    def __init__(self, settings: Settings) -> None:
+        if not settings.data_go_kr_service_key:
+            raise ValueError("공공데이터 서비스 키가 필요합니다.")
+        self.settings = settings
+
+    async def fetch_status(self, airport_code: str, local_date: date) -> FlightSourceResponse:
+        if airport_code.upper() == "ICN":
+            return await self._fetch_incheon_status(local_date)
+
+        params = {
+            "serviceKey": self.settings.data_go_kr_service_key,
+            "page": 1,
+            "perPage": 1000,
+            "returnType": "JSON",
+            "cond[FLIGHT_DATE::EQ]": local_date.strftime("%Y%m%d"),
+            "cond[AIRPORT::EQ]": airport_code.upper(),
+        }
+        async with httpx.AsyncClient(timeout=self.settings.api_timeout_seconds) as client:
+            response = await client.get(KAC_FLIGHT_DETAIL_STATUS_ENDPOINT, params=params)
+            response.raise_for_status()
+            return FlightSourceResponse(
+                source="kac_flight_detail_status",
+                endpoint=KAC_FLIGHT_DETAIL_STATUS_ENDPOINT,
+                request_params=params,
+                status_code=response.status_code,
+                body_text=response.text,
+            )
+
+    async def _fetch_legacy_kac_status(self, airport_code: str) -> FlightSourceResponse:
+        params = {
+            "serviceKey": self.settings.data_go_kr_service_key,
+            "schAirCode": airport_code.upper(),
+            "schStTime": "0000",
+            "schEdTime": "2359",
+            "pageNo": 1,
+            "numOfRows": 300,
+        }
+        async with httpx.AsyncClient(timeout=self.settings.api_timeout_seconds) as client:
+            response = await client.get(KAC_FLIGHT_STATUS_ENDPOINT, params=params)
+            response.raise_for_status()
+            return FlightSourceResponse(
+                source="kac_flight_status",
+                endpoint=KAC_FLIGHT_STATUS_ENDPOINT,
+                request_params=params,
+                status_code=response.status_code,
+                body_text=response.text,
+            )
+
+    async def _fetch_incheon_status(self, local_date: date) -> FlightSourceResponse:
+        request_date = local_date.strftime("%Y%m%d")
+        base_params = {
+            "serviceKey": self.settings.data_go_kr_service_key,
+            "pageNo": 1,
+            "numOfRows": 500,
+            "type": "json",
+            "searchday": request_date,
+            "from_time": "0000",
+            "to_time": "2400",
+            "lang": "K",
+            "inqtimechcd": "E",
+        }
+        async with httpx.AsyncClient(timeout=self.settings.api_timeout_seconds) as client:
+            arrivals_response = await client.get(INCHEON_FLIGHT_ARRIVALS_ENDPOINT, params=base_params)
+            departures_response = await client.get(INCHEON_FLIGHT_DEPARTURES_ENDPOINT, params=base_params)
+            arrivals_response.raise_for_status()
+            departures_response.raise_for_status()
+            return FlightSourceResponse(
+                source="incheon_flight_status",
+                endpoint=INCHEON_FLIGHT_DEPARTURES_ENDPOINT,
+                request_params={**base_params, "endpoints": ["arrivals", "departures"]},
+                status_code=max(arrivals_response.status_code, departures_response.status_code),
+                body_text=json.dumps(
+                    {
+                        "arrivals": json.loads(arrivals_response.text),
+                        "departures": json.loads(departures_response.text),
+                    },
+                    ensure_ascii=False,
+                ),
+            )
+
+
+class FlightStatusService:
+    def __init__(self, settings: Settings) -> None:
+        self.settings = settings
+        self.client = _build_client(settings)
+        self._cache: dict[tuple[str, str], tuple[datetime, dict[str, Any]]] = {}
+
+    async def get_status(self, airport_code: str, local_date: date) -> dict[str, Any]:
+        airport_code = airport_code.upper()
+        cache_key = (airport_code, local_date.isoformat())
+        cached = self._cache.get(cache_key)
+        current_time = now_utc()
+
+        if cached and cached[0] > current_time:
+            return cached[1]
+
+        payload = await self._fetch_status(airport_code, local_date)
+        expires_at = current_time + timedelta(seconds=max(self.settings.flight_status_cache_seconds, 0))
+        self._cache[cache_key] = (expires_at, payload)
+        return payload
+
+    async def _fetch_status(self, airport_code: str, local_date: date) -> dict[str, Any]:
+        base_payload = {
+            "generated_at": now_utc(),
+            "airport_code": airport_code,
+            "local_date": local_date.isoformat(),
+            "source": "kac_flight_status",
+            "status": "success",
+            "error_message": None,
+            "items": [],
+        }
+
+        if not self.settings.enable_flight_status_markers:
+            return {**base_payload, "source": "disabled", "status": "disabled"}
+
+        if self.client is None:
+            return {
+                **base_payload,
+                "status": "config_error",
+                "error_message": "비행편 API 서비스 키가 설정되지 않았습니다.",
+            }
+
+        try:
+            response = await self.client.fetch_status(airport_code, local_date)
+            if response.source in {"incheon_flight_status", "sample_incheon_flight_status"}:
+                items, error_message = parse_incheon_flight_status_json(response.body_text, local_date, self.settings.app_timezone)
+            elif response.source == "kac_flight_detail_status":
+                items, error_message = parse_kac_flight_detail_json(
+                    response.body_text,
+                    airport_code,
+                    local_date,
+                    self.settings.app_timezone,
+                )
+            else:
+                items, error_message = parse_flight_status_xml(
+                    response.body_text,
+                    airport_code,
+                    local_date,
+                    self.settings.app_timezone,
+                )
+        except (httpx.HTTPError, ElementTree.ParseError, ValueError) as exc:
+            return {
+                **base_payload,
+                "status": "upstream_error",
+                "error_message": f"비행편 API 응답을 읽지 못했습니다: {exc}",
+            }
+
+        status = "sample" if response.source in {"sample_flight_status", "sample_incheon_flight_status"} else "success"
+        if error_message:
+            status = "upstream_error"
+
+        return {
+            **base_payload,
+            "source": response.source,
+            "status": status,
+            "error_message": error_message,
+            "items": items,
+        }
+
+
+def parse_flight_status_xml(
+    body_text: str,
+    airport_code: str,
+    local_date: date,
+    tz_name: str = "Asia/Seoul",
+) -> tuple[list[dict[str, Any]], str | None]:
+    root = ElementTree.fromstring(body_text)
+    result_code = _find_text(root, "resultCode")
+    result_message = _find_text(root, "resultMsg")
+
+    if result_code and result_code not in SUCCESS_RESULT_CODES:
+        message = result_message or "UNKNOWN ERROR"
+        return [], f"kac_flight_status API error {result_code}: {message}"
+
+    items: list[dict[str, Any]] = []
+    for item in root.findall(".//item"):
+        parsed = _parse_flight_item(item, airport_code, local_date, tz_name)
+        if parsed is not None:
+            items.append(parsed)
+
+    items.sort(key=lambda flight: (flight["marker_at"], flight["flight_number"]))
+    return items, None
+
+
+def parse_kac_flight_detail_json(
+    body_text: str,
+    airport_code: str,
+    local_date: date,
+    tz_name: str = "Asia/Seoul",
+) -> tuple[list[dict[str, Any]], str | None]:
+    document = json.loads(body_text)
+    data = document.get("data", [])
+    if not isinstance(data, list):
+        message = str(document.get("message") or document.get("error") or "UNKNOWN ERROR").strip()
+        return [], f"kac_flight_detail_status API error: {message}"
+
+    items: list[dict[str, Any]] = []
+    for item in data:
+        if not isinstance(item, dict):
+            continue
+        parsed = _parse_kac_detail_flight_item(item, airport_code, local_date, tz_name)
+        if parsed is not None:
+            items.append(parsed)
+
+    items.sort(key=lambda flight: (flight["marker_at"], flight["flight_number"]))
+    return items, None
+
+
+def parse_incheon_flight_status_json(
+    body_text: str,
+    local_date: date,
+    tz_name: str = "Asia/Seoul",
+) -> tuple[list[dict[str, Any]], str | None]:
+    document = json.loads(body_text)
+    items: list[dict[str, Any]] = []
+    errors: list[str] = []
+
+    for key, direction in (("departures", "departure"), ("arrivals", "arrival")):
+        response = document.get(key, {})
+        header = response.get("response", {}).get("header", {})
+        result_code = str(header.get("resultCode") or "").strip()
+        result_message = str(header.get("resultMsg") or "").strip()
+        if result_code and result_code not in SUCCESS_RESULT_CODES:
+            errors.append(f"incheon_flight_status {key} API error {result_code}: {result_message}")
+            continue
+
+        for item in _json_items(response):
+            parsed = _parse_incheon_flight_item(item, direction, local_date, tz_name)
+            if parsed is not None:
+                items.append(parsed)
+
+    items.sort(key=lambda flight: (flight["marker_at"], flight["flight_number"]))
+    return items, "\n".join(errors) if errors else None
+
+
+def _build_client(settings: Settings) -> FlightStatusClient | None:
+    if settings.data_go_kr_service_key:
+        return LiveFlightStatusClient(settings)
+    if settings.use_sample_client_when_no_key:
+        return FixtureFlightStatusClient()
+    return None
+
+
+def _build_sample_flight_xml(airport_code: str) -> str:
+    items = SAMPLE_FLIGHT_ITEMS.get(airport_code.upper(), SAMPLE_FLIGHT_ITEMS["GMP"])
+    item_xml = []
+    for item in items:
+        item_xml.append("<item>" + "".join(f"<{key}>{value}</{key}>" for key, value in item.items()) + "</item>")
+    return f"""<?xml version="1.0" encoding="UTF-8"?>
+<response>
+  <header>
+    <resultCode>00</resultCode>
+    <resultMsg>NORMAL SERVICE</resultMsg>
+  </header>
+  <body>
+    <items>
+      {"".join(item_xml)}
+    </items>
+  </body>
+</response>
+"""
+
+
+def _build_sample_incheon_flight_json() -> str:
+    items = SAMPLE_FLIGHT_ITEMS["ICN"]
+    arrivals = [item for item in items if item["direction"] == "arrival"]
+    departures = [item for item in items if item["direction"] == "departure"]
+    return json.dumps(
+        {
+            "arrivals": {
+                "response": {
+                    "header": {"resultCode": "00", "resultMsg": "NORMAL SERVICE."},
+                    "body": {"items": arrivals},
+                }
+            },
+            "departures": {
+                "response": {
+                    "header": {"resultCode": "00", "resultMsg": "NORMAL SERVICE."},
+                    "body": {"items": departures},
+                }
+            },
+        },
+        ensure_ascii=False,
+    )
+
+
+def _parse_flight_item(
+    item: ElementTree.Element,
+    airport_code: str,
+    local_date: date,
+    tz_name: str,
+) -> dict[str, Any] | None:
+    flight_number = _text(item, "airFln")
+    scheduled_time = _text(item, "std")
+    if not flight_number or not scheduled_time:
+        return None
+
+    scheduled_at = _combine_local_time(local_date, scheduled_time, tz_name)
+    if scheduled_at is None:
+        return None
+
+    estimated_at = _combine_local_time(local_date, _text(item, "etd"), tz_name)
+    marker_at = estimated_at or scheduled_at
+    direction = _normalize_direction(_text(item, "io"), _text(item, "rmkKor"), _text(item, "rmkEng"))
+    origin, destination = _build_route_labels(item, direction, airport_code)
+
+    return {
+        "airport_code": airport_code,
+        "direction": direction,
+        "flight_number": flight_number,
+        "airline": _text(item, "airlineKorean") or _text(item, "airlineEnglish") or None,
+        "scheduled_at": serialize_utc(scheduled_at),
+        "estimated_at": serialize_utc(estimated_at) if estimated_at else None,
+        "marker_at": serialize_utc(marker_at),
+        "origin_airport": origin,
+        "destination_airport": destination,
+        "status": _text(item, "rmkKor") or _text(item, "rmkEng") or None,
+        "line_type": _text(item, "line") or None,
+    }
+
+
+def _parse_kac_detail_flight_item(
+    item: dict[str, Any],
+    airport_code: str,
+    local_date: date,
+    tz_name: str,
+) -> dict[str, Any] | None:
+    flight_number = _dict_text(item, "AIR_FLN", "airFln", "flightid")
+    flight_date = _parse_yyyymmdd(_dict_text(item, "FLIGHT_DATE", "flightDate")) or local_date
+    scheduled_at = _combine_local_time(flight_date, _dict_text(item, "STD", "std", "scheduledatetime"), tz_name)
+    if not flight_number or scheduled_at is None:
+        return None
+
+    estimated_at = _combine_local_time(flight_date, _dict_text(item, "ETD", "etd", "estimateddatetime"), tz_name)
+    marker_at = estimated_at or scheduled_at
+    direction = _normalize_direction(
+        _dict_text(item, "IO", "io"),
+        _dict_text(item, "RMK_KOR", "rmkKor"),
+        _dict_text(item, "RMK_ENG", "rmkEng"),
+    )
+    origin = _dict_text(item, "BOARDING_KOR", "BOARDING_ENG", "depAirport")
+    destination = _dict_text(item, "ARRIVED_KOR", "ARRIVED_ENG", "arrAirport")
+
+    return {
+        "airport_code": airport_code.upper(),
+        "direction": direction,
+        "flight_number": flight_number,
+        "airline": _dict_text(item, "AIRLINE_KOREAN", "AIRLINE_ENGLISH") or None,
+        "scheduled_at": serialize_utc(scheduled_at),
+        "estimated_at": serialize_utc(estimated_at) if estimated_at else None,
+        "marker_at": serialize_utc(marker_at),
+        "origin_airport": origin or (airport_code.upper() if direction == "departure" else "-"),
+        "destination_airport": destination or (airport_code.upper() if direction == "arrival" else "-"),
+        "status": _dict_text(item, "RMK_KOR", "RMK_ENG") or None,
+        "line_type": _dict_text(item, "LINE", "LINE_CODE") or None,
+    }
+
+
+def _parse_incheon_flight_item(
+    item: dict[str, Any],
+    direction: str,
+    local_date: date,
+    tz_name: str,
+) -> dict[str, Any] | None:
+    flight_number = str(item.get("flightId") or "").strip()
+    scheduled_at = _combine_local_datetime_text(str(item.get("scheduleDateTime") or ""), local_date, tz_name)
+    if not flight_number or scheduled_at is None:
+        return None
+
+    estimated_at = _combine_local_datetime_text(str(item.get("estimatedDateTime") or ""), local_date, tz_name)
+    marker_at = estimated_at or scheduled_at
+    remote_airport = str(item.get("airport") or "").strip() or "-"
+
+    if direction == "departure":
+        origin_airport = "인천"
+        destination_airport = remote_airport
+    else:
+        origin_airport = remote_airport
+        destination_airport = "인천"
+
+    return {
+        "airport_code": "ICN",
+        "direction": direction,
+        "flight_number": flight_number,
+        "airline": str(item.get("airline") or "").strip() or None,
+        "scheduled_at": serialize_utc(scheduled_at),
+        "estimated_at": serialize_utc(estimated_at) if estimated_at else None,
+        "marker_at": serialize_utc(marker_at),
+        "origin_airport": origin_airport,
+        "destination_airport": destination_airport,
+        "status": str(item.get("remark") or "").strip() or None,
+        "line_type": str(item.get("typeOfFlight") or "").strip() or None,
+    }
+
+
+def _find_text(root: ElementTree.Element, tag_name: str) -> str | None:
+    element = root.find(f".//{tag_name}")
+    if element is None or element.text is None:
+        return None
+    value = element.text.strip()
+    return value or None
+
+
+def _text(item: ElementTree.Element, tag_name: str) -> str:
+    return _find_text(item, tag_name) or ""
+
+
+def _json_items(document: dict[str, Any]) -> list[dict[str, Any]]:
+    items = document.get("response", {}).get("body", {}).get("items", [])
+    if isinstance(items, dict):
+        items = items.get("item", [])
+    if isinstance(items, dict):
+        items = [items]
+    if isinstance(items, list):
+        return [item for item in items if isinstance(item, dict)]
+    return []
+
+
+def _dict_text(item: dict[str, Any], *keys: str) -> str:
+    for key in keys:
+        value = item.get(key)
+        if value is not None:
+            text = str(value).strip()
+            if text:
+                return text
+    return ""
+
+
+def _parse_yyyymmdd(value: str) -> date | None:
+    digits = "".join(character for character in value if character.isdigit())
+    if len(digits) < 8:
+        return None
+    try:
+        return datetime.strptime(digits[:8], "%Y%m%d").date()
+    except ValueError:
+        return None
+
+
+def _combine_local_time(local_date: date, time_text: str, tz_name: str) -> datetime | None:
+    hour_minute = _parse_hhmm(time_text)
+    if hour_minute is None:
+        return None
+    hour, minute = hour_minute
+    return datetime(
+        local_date.year,
+        local_date.month,
+        local_date.day,
+        hour,
+        minute,
+        tzinfo=ZoneInfo(tz_name),
+    )
+
+
+def _combine_local_datetime_text(value: str, local_date: date, tz_name: str) -> datetime | None:
+    digits = "".join(character for character in value if character.isdigit())
+    if len(digits) >= 12:
+        try:
+            return datetime.strptime(digits[:12], "%Y%m%d%H%M").replace(tzinfo=ZoneInfo(tz_name))
+        except ValueError:
+            return None
+    if len(digits) >= 4:
+        return _combine_local_time(local_date, digits[-4:], tz_name)
+    return None
+
+
+def _parse_hhmm(value: str) -> tuple[int, int] | None:
+    digits = "".join(character for character in value if character.isdigit())
+    if len(digits) < 4:
+        return None
+    hour = int(digits[-4:-2])
+    minute = int(digits[-2:])
+    if hour > 23 or minute > 59:
+        return None
+    return hour, minute
+
+
+def _normalize_direction(io_value: str, status_ko: str, status_en: str) -> str:
+    normalized = io_value.strip().upper()
+    status_text = f"{status_ko} {status_en}".upper()
+
+    if normalized.startswith("O") or "출발" in status_text or "DEPART" in status_text:
+        return "departure"
+    if normalized.startswith("I") or "도착" in status_text or "ARRIV" in status_text:
+        return "arrival"
+    return "unknown"
+
+
+def _build_route_labels(item: ElementTree.Element, direction: str, airport_code: str) -> tuple[str, str]:
+    boarding = _text(item, "boardingKor") or _text(item, "boardingEng")
+    arrived = _text(item, "arrivedKor") or _text(item, "arrivedEng")
+    city = _text(item, "city")
+
+    if direction == "departure":
+        return boarding or airport_code, arrived or city or "-"
+    if direction == "arrival":
+        return boarding or city or "-", arrived or airport_code
+    return boarding or airport_code, arrived or city or "-"

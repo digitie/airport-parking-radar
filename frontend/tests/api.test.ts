@@ -85,6 +85,30 @@ describe("api client", () => {
     );
   });
 
+  test("requests the flight status endpoint for chart markers", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        generated_at: "2026-04-26T00:00:00.000Z",
+        airport_code: "GMP",
+        local_date: "2026-04-26",
+        source: "sample_flight_status",
+        status: "sample",
+        error_message: null,
+        items: [],
+      }),
+    });
+
+    vi.stubGlobal("fetch", fetchMock);
+    const client = buildApiClient("http://localhost:8000");
+    await client.getFlightStatus("GMP");
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "http://localhost:8000/flights/status?airport_code=GMP",
+      expect.objectContaining({ cache: "no-store" })
+    );
+  });
+
   test("surfaces backend detail messages for collector cooldown errors", async () => {
     const fetchMock = vi.fn().mockResolvedValue({
       ok: false,

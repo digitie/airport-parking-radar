@@ -55,11 +55,12 @@ def test_collection_service_reports_enabled_sources() -> None:
         use_sample_client_when_no_key=True,
         enable_incheon_collection=True,
         enable_fee_collection=True,
+        enable_incheon_fee_collection=True,
     )
 
     service = CollectionService(settings, client=FixturePublicDataClient())
 
-    assert service.enabled_sources == ["kac_parking", "incheon_parking", "kac_fee"]
+    assert service.enabled_sources == ["kac_parking", "incheon_parking", "kac_fee", "incheon_fee"]
 
 
 def test_validate_source_response_body_detects_kac_access_denied() -> None:
@@ -86,6 +87,21 @@ def test_validate_source_response_body_detects_incheon_error_payload() -> None:
                 "header": {
                   "resultCode": "99",
                   "resultMsg": "INVALID REQUEST"
+                }
+              }
+            }""",
+        )
+
+
+def test_validate_source_response_body_detects_incheon_fee_error_payload() -> None:
+    with pytest.raises(ValueError, match="SERVICE ACCESS DENIED"):
+        validate_source_response_body(
+            "incheon_fee",
+            """{
+              "response": {
+                "header": {
+                  "resultCode": "99",
+                  "resultMsg": "SERVICE ACCESS DENIED"
                 }
               }
             }""",

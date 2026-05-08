@@ -13,6 +13,8 @@
 - 시계열 X축 6시간 단위 라벨
 - 시계열 보간 없는 계단형 표시
 - 시계열 기본 커서가 최신 값에 고정되고 오른쪽 끝부터 바로 표시
+- 선택 공항 비행편 출도착 시간 마커
+  - 시간, 편명, 출발공항, 도착공항 표시
 - 요일 x 시간 기준 평균 잔여 주차면 히트맵
 - 평균으로 가장 빠듯한 시간 / 가장 여유 있는 시간 요약
 - 요일별 시간대 상세 패턴 카드
@@ -21,7 +23,7 @@
 - 마지막으로 본 공항 / 세부 주차장 자동 복원
 - 웹페이지 자동 갱신
 - 주차 요금 계산
-  - 인천공항은 현재 가격 정보 미지원
+  - 한국공항공사 요금과 인천공항공사 요금 API를 분리해 사용
 
 ## 기술 스택
 
@@ -42,8 +44,15 @@
   [https://www.data.go.kr/data/15038474/openapi.do](https://www.data.go.kr/data/15038474/openapi.do)
 - 인천국제공항공사 주차 정보  
   [https://www.data.go.kr/data/15095047/openapi.do](https://www.data.go.kr/data/15095047/openapi.do)
+- 인천국제공항공사 주차요금 정보
+  [https://www.data.go.kr/data/15095053/openapi.do](https://www.data.go.kr/data/15095053/openapi.do)
+- 한국공항공사 실시간 항공편 운항 정보
+  [https://www.data.go.kr/data/15113771/openapi.do](https://www.data.go.kr/data/15113771/openapi.do)
+- 인천국제공항공사 여객기 운항 정보
+  [https://www.data.go.kr/data/15112968/openapi.do](https://www.data.go.kr/data/15112968/openapi.do)
 
-현재 실시간 기본 수집원은 `15056803`이며, 인천과 요금 API는 별도 플래그로 분리되어 있다.
+현재 실시간 기본 수집원은 `15056803`이며, 인천 주차/요금 API는 별도 플래그로 분리되어 있다.
+비행편 정보는 주차 현황 수집과 분리된 조회용 API이며, 시계열 차트의 마커 표시 용도로만 사용한다.
 
 ## 빠른 시작
 
@@ -57,7 +66,7 @@ docker compose up -d
 
 ## ODROID M1S 배포
 
-배포 기준 정보는 루트의 [.env.odroid](</C:/Users/digit/OneDrive/문서/New project/.env.odroid>)에 저장한다.
+배포 기준 정보는 루트의 [.env.odroid](</F:/dev/parking-radar/.env.odroid>)에 저장한다.
 
 - 대상 IP: `192.168.1.204`
 - 사용자: `digitie`
@@ -97,6 +106,9 @@ USE_SAMPLE_CLIENT_WHEN_NO_KEY=false
 COLLECT_INTERVAL_SECONDS=600
 MANUAL_COLLECT_MIN_INTERVAL_SECONDS=600
 UPSTREAM_RATE_LIMIT_BACKOFF_SECONDS=3600
+ENABLE_INCHEON_COLLECTION=true
+ENABLE_INCHEON_FEE_COLLECTION=true
+AIRPORT_CODES_CSV=CJJ,CJU,GMP,HIN,ICN,KUV,KWJ,MWX,PUS,RSU,TAE,USN,WJU,YNY
 DATA_GO_KR_SERVICE_KEY=...
 ```
 
@@ -104,7 +116,8 @@ DATA_GO_KR_SERVICE_KEY=...
 - 샘플 시계열은 `client_mode=sample`에서만 시드한다.
 - `15056803` 카탈로그에는 개발계정 `5,000` 트래픽이 보이지만, ODROID 실측에서는 `2026-04-28`에 100회 성공 후 101번째부터 `LIMITED NUMBER OF SERVICE REQUESTS EXCEEDS ERROR.`가 발생했다.
 - 중복 수집기를 제거한 뒤에는 ODROID live를 10분(`600초`) 주기와 10분 수동 수집 제한으로 운영한다.
-- ODROID live는 `CJJ,CJU,GMP,HIN,KUV,KWJ,MWX,PUS,RSU,TAE,USN,WJU,YNY`를 같은 10분 주기 응답에서 함께 처리한다.
+- ODROID live는 `CJJ,CJU,GMP,HIN,ICN,KUV,KWJ,MWX,PUS,RSU,TAE,USN,WJU,YNY`를 같은 10분 주기에서 처리한다.
+- `15056803`이 한도 초과 상태여도 인천 전용 API(`15095047`, `15095053`)가 활성화되어 있으면 인천 주차/요금 수집은 계속 시도한다.
 - 같은 인증키를 쓰는 live 수집기는 동시에 하나만 유지한다.
 - 빠른 검증용 live 스택을 잠깐 띄웠다면 검증 직후 반드시 내려야 한다.
 - 수집기가 한도 초과를 감지하면 `UPSTREAM_RATE_LIMIT_BACKOFF_SECONDS` 동안 API 호출을 잠시 건너뛰고, `collector-status`에 `upstream_rate_limited=true`와 `upstream_rate_limited_until`을 남긴다.
@@ -139,7 +152,7 @@ curl http://localhost:8000/admin/collector-status
 
 - `scheduler_enabled=true`
 - `client_mode=live`
-- `enabled_sources=["kac_parking"]`
+- `enabled_sources`에 `kac_parking`, `incheon_parking`, `incheon_fee`가 의도대로 포함되는지 확인
 - `data_go_kr_service_key_configured=true`
 - `upstream_rate_limited=false`
 
@@ -157,16 +170,41 @@ curl http://localhost:8000/admin/collector-status
   - 임계치 이벤트
 - `전체 주차장`이면 공항 내 활성 주차장을 합산해서 보여준다.
 - 시계열의 마지막 값은 항상 화면 상단 `지금 주차 여유`와 같은 기준으로 맞춘다.
+- 시계열 차트의 비행편 마커는 선택 공항 기준 출도착편을 X축 시간 위치에 표시한다.
+- 비행편 API 권한이 없거나 응답 오류가 나면 주차장 화면은 유지하고, 비행편 마커 영역에 오류 상태만 표시한다.
 
 ## 테스트
 
-백엔드:
+검증과 배포 순서:
+
+1. `WSL2` 셸에서 1차 테스트
+2. `WSL2 + Docker`에서 2차 테스트
+3. ODROID 배포
+4. ODROID 스모크 체크
+
+Windows 로컬 PowerShell 테스트는 지양하고, 테스트 통과 기준으로 삼지 않는다.
+
+WSL 1차 백엔드:
+
+```bash
+python -m pytest backend/tests -q
+```
+
+WSL 1차 프론트엔드:
+
+```bash
+cd frontend
+npm run test -- --run
+npm run build
+```
+
+WSL Docker 2차 백엔드:
 
 ```bash
 docker compose run --rm --no-deps backend pytest -q
 ```
 
-프론트엔드:
+WSL Docker 2차 프론트엔드:
 
 ```bash
 docker compose run --rm --no-deps frontend npm run test -- --run
@@ -178,6 +216,7 @@ docker compose run --rm --no-deps frontend npm run test -- --run
 - 모바일 / 데스크톱 반응형 화면
 - 시계열 툴팁 동작
 - 시계열 계단형 라인과 X축 라벨 레이아웃
+- 비행편 마커와 편명/출도착 정보 표시
 - 요일 x 시간 분석 패널 렌더링
 - `GET /admin/collector-status`로 수집 모드 확인
 
@@ -192,26 +231,30 @@ docker compose run --rm --no-deps frontend npm run test -- --run
 - `GET /parking/analytics/by-weekday-hour`
 - `GET /parking/analytics/threshold-events`
 - `GET /parking/analytics/threshold-insights`
+- `GET /flights/status`
 - `POST /fees/calculate`
 - `POST /admin/collect`
 - `GET /admin/collector-status`
 
 ## 문서
 
-- [docs/current-state.md](</C:/Users/digit/OneDrive/문서/New project/docs/current-state.md>)
-- [docs/data-sources.md](</C:/Users/digit/OneDrive/문서/New project/docs/data-sources.md>)
-- [AGENTS.md](</C:/Users/digit/OneDrive/문서/New project/AGENTS.md>)
-- [deploy/odroid/README.md](</C:/Users/digit/OneDrive/문서/New project/deploy/odroid/README.md>)
-- [docs/architecture.md](</C:/Users/digit/OneDrive/문서/New project/docs/architecture.md>)
-- [docs/analytics.md](</C:/Users/digit/OneDrive/문서/New project/docs/analytics.md>)
-- [docs/testing.md](</C:/Users/digit/OneDrive/문서/New project/docs/testing.md>)
-- [docs/deployment.md](</C:/Users/digit/OneDrive/문서/New project/docs/deployment.md>)
-- [docs/time-and-collector.md](</C:/Users/digit/OneDrive/문서/New project/docs/time-and-collector.md>)
-- [docs/troubleshooting.md](</C:/Users/digit/OneDrive/문서/New project/docs/troubleshooting.md>)
-- [docs/remote-command-safety.md](</C:/Users/digit/OneDrive/문서/New project/docs/remote-command-safety.md>)
+- [docs/current-state.md](</F:/dev/parking-radar/docs/current-state.md>)
+- [docs/data-sources.md](</F:/dev/parking-radar/docs/data-sources.md>)
+- [AGENTS.md](</F:/dev/parking-radar/AGENTS.md>)
+- [deploy/odroid/README.md](</F:/dev/parking-radar/deploy/odroid/README.md>)
+- [docs/architecture.md](</F:/dev/parking-radar/docs/architecture.md>)
+- [docs/analytics.md](</F:/dev/parking-radar/docs/analytics.md>)
+- [docs/testing.md](</F:/dev/parking-radar/docs/testing.md>)
+- [docs/deployment.md](</F:/dev/parking-radar/docs/deployment.md>)
+- [docs/time-and-collector.md](</F:/dev/parking-radar/docs/time-and-collector.md>)
+- [docs/troubleshooting.md](</F:/dev/parking-radar/docs/troubleshooting.md>)
+- [docs/remote-command-safety.md](</F:/dev/parking-radar/docs/remote-command-safety.md>)
 
 ## WSL 테스트 기준
 
-- 모든 테스트와 기본 검증 기준 환경은 `WSL2 + Docker`이다.
-- `docker compose run --rm --no-deps ...` 형태의 테스트 명령은 `WSL2` 셸에서 실행하는 것을 기준으로 유지한다.
+- 모든 테스트와 기본 검증 기준 환경은 `WSL2`이다.
+- Windows 로컬 테스트는 지양한다.
+- 1차 테스트는 `WSL2` 셸에서 로컬 런타임으로 실행한다.
+- 2차 테스트는 `WSL2 + Docker`에서 `docker compose run --rm --no-deps ...` 형태로 실행한다.
+- ODROID 배포는 1차/2차 테스트 통과 이후 진행한다.
 - Windows PowerShell은 배포 스크립트와 상태 확인 용도로 사용하되, 테스트 합격 기준은 `WSL2` 결과를 따른다.

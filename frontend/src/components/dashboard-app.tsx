@@ -13,6 +13,7 @@ import { formatDateTimeWithZone } from "@/lib/format";
 import type {
   Airport,
   CollectorStatusResponse,
+  FlightStatusResponse,
   ParkingStatus,
   ParkingTimeSeriesResponse,
   ThresholdEvent,
@@ -26,6 +27,18 @@ type DashboardAppProps = {
 };
 
 const DASHBOARD_AUTO_REFRESH_INTERVAL_MS = 60_000;
+
+function buildFlightStatusError(airportCode: string, caughtError: unknown): FlightStatusResponse {
+  return {
+    generated_at: new Date().toISOString(),
+    airport_code: airportCode,
+    local_date: new Date().toISOString().slice(0, 10),
+    source: "client",
+    status: "client_error",
+    error_message: caughtError instanceof Error ? caughtError.message : "비행편 정보를 불러오지 못했습니다.",
+    items: [],
+  };
+}
 
 function useViewportMode() {
   const [isMobile, setIsMobile] = useState(false);
@@ -67,6 +80,7 @@ export function DashboardApp({
   const [thresholdInsights, setThresholdInsights] = useState<ThresholdInsightsResponse | null>(null);
   const [weekdayHourlyPatterns, setWeekdayHourlyPatterns] = useState<WeekdayHourlyPattern[]>([]);
   const [timeSeries, setTimeSeries] = useState<ParkingTimeSeriesResponse | null>(null);
+  const [flightStatus, setFlightStatus] = useState<FlightStatusResponse | null>(null);
   const [collectorStatus, setCollectorStatus] = useState<CollectorStatusResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [collecting, setCollecting] = useState(false);
@@ -97,12 +111,16 @@ export function DashboardApp({
       setError(null);
 
       try {
-        const [current, thresholds, thresholdDetail, weekdayHourly, timeseries, status] = await Promise.all([
+        const flightStatusRequest = api
+          .getFlightStatus(airportCode)
+          .catch((caughtError) => buildFlightStatusError(airportCode, caughtError));
+        const [current, thresholds, thresholdDetail, weekdayHourly, timeseries, flights, status] = await Promise.all([
           api.getCurrent(airportCode),
           api.getThresholdEvents(airportCode, parkingLotId),
           api.getThresholdInsights(airportCode, { parkingLotId }),
           api.getByWeekdayHour(airportCode, parkingLotId),
           api.getTimeSeries(airportCode, { parkingLotId }),
+          flightStatusRequest,
           api.getCollectorStatus(),
         ]);
         if (!mountedRef.current || loadRequestIdRef.current !== requestId) {
@@ -113,6 +131,7 @@ export function DashboardApp({
         setThresholdInsights(thresholdDetail);
         setWeekdayHourlyPatterns(weekdayHourly);
         setTimeSeries(timeseries);
+        setFlightStatus(flights);
         setCollectorStatus(status);
       } catch (caughtError) {
         if (!mountedRef.current || loadRequestIdRef.current !== requestId) {
@@ -261,6 +280,7 @@ export function DashboardApp({
         thresholdInsights={thresholdInsights}
         weekdayHourlyPatterns={weekdayHourlyPatterns}
         timeSeries={timeSeries}
+        flightStatus={flightStatus}
         collectorStatus={collectorStatus}
         isMobile={isMobile}
         loading={loading}

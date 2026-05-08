@@ -4,6 +4,7 @@ import type {
   CollectorStatusResponse,
   FeeCalculationRequest,
   FeeCalculationResponse,
+  FlightStatusResponse,
   HourlyBucket,
   ParkingCurrentResponse,
   ParkingTimeSeriesResponse,
@@ -94,6 +95,10 @@ export function buildApiClient(apiBaseUrl?: string) {
     },
     getCollectorStatus(): Promise<CollectorStatusResponse> {
       return getJson<CollectorStatusResponse>(`${baseUrl}/admin/collector-status`);
+    },
+    getFlightStatus(airportCode: string): Promise<FlightStatusResponse> {
+      const params = new URLSearchParams({ airport_code: airportCode });
+      return getJson<FlightStatusResponse>(`${baseUrl}/flights/status?${params.toString()}`);
     },
     runCollector(): Promise<CollectionSummary> {
       return getJson<CollectionSummary>(`${baseUrl}/admin/collect`, { method: "POST" });

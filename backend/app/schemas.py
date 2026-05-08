@@ -71,6 +71,30 @@ class ParkingTimeSeriesResponse(BaseModel):
     items: list[TimeSeriesPoint]
 
 
+class FlightStatusItem(BaseModel):
+    airport_code: str
+    direction: str
+    flight_number: str
+    airline: str | None = None
+    scheduled_at: datetime
+    estimated_at: datetime | None = None
+    marker_at: datetime
+    origin_airport: str
+    destination_airport: str
+    status: str | None = None
+    line_type: str | None = None
+
+
+class FlightStatusResponse(BaseModel):
+    generated_at: datetime
+    airport_code: str
+    local_date: str
+    source: str
+    status: str
+    error_message: str | None = None
+    items: list[FlightStatusItem]
+
+
 class HourlyBucket(BaseModel):
     hour: int
     average_available_spaces: float

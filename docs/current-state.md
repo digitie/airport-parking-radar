@@ -4,7 +4,7 @@
 세부 기능 문서가 흩어져 있을 때 먼저 이 문서를 읽고, 필요하면 링크된 개별 문서로 내려가는 것을 권장한다.
 
 최종 확인 기준일:
-- `2026-04-26`
+- `2026-05-09`
 
 ## 1. 현재 구현 범위
 
@@ -17,6 +17,7 @@
 - 시계열 X축 6시간 단위 라벨
 - 시계열 계단형(step) 차트
 - 시계열 최신 포인트 기본 활성화 및 오른쪽 최신 구간 우선 노출
+- 선택 공항 비행편 출도착 시간 마커
 - 요일 x 시간 평균 잔여 주차면 히트맵
 - 평균으로 가장 빠듯한 시간 / 가장 여유 있는 시간 요약
 - 요일별 24시간 상세 패턴 카드
@@ -26,6 +27,8 @@
 - 공항/세부 주차장 스코프 전환
 - 마지막으로 본 공항 / 세부 주차장 복원
 - 주차 요금 계산
+  - 한국공항공사 요금 API
+  - 인천공항공사 요금 API
 - 웹 UI에서 수동 수집 실행
 - 수동 수집 쿨다운 제한
 - 웹 UI 60초 자동 갱신
@@ -72,15 +75,23 @@ curl http://localhost:8000/admin/collector-status
 - `15063437` 한국공항공사 전국공항 주차장 혼잡도
 - `15038474` 한국공항공사 전국공항 주차요금
 - `15095047` 인천국제공항공사 주차 정보
+- `15095053` 인천국제공항공사 주차요금 정보
+- `15113771` 한국공항공사 실시간 항공운항 현황 정보 상세 조회 서비스
+- `15112968` 인천국제공항공사 여객기 운항 정보
 
 현재 코드 기준 운영 판단:
 
 - 한국공항공사 실시간 주차 현황은 `15056803`을 기본으로 사용한다.
 - `15063437`은 혼잡도 참고용 후보지만 기본 수집원은 아니다.
-- `15038474`와 `15095047`는 별도 플래그를 켰을 때만 시도한다.
+- `15038474`, `15095047`, `15095053`은 별도 플래그를 켰을 때만 시도한다.
+- `15056803`이 한도 초과 상태여도 `15095047`, `15095053` 인천 전용 소스는 계속 시도한다.
+- 비행편 정보는 주차 수집과 분리된 조회용 API이며, `/flights/status`를 통해 시계열 마커에만 사용한다.
+- `2026-05-09` 현재 보유 키로 `15113771` 한국공항공사 실시간 항공운항 현황 정보 상세 조회 서비스는 정상 응답을 확인했다.
+- `2026-05-09` 현재 보유 키로 `15112968` 인천 여객기 운항 정보는 정상 응답을 확인했다.
+- 기존 `15000126` 계열 `FlightStatusList/getFlightStatusList`는 현재 보유 키로 `SERVICE ACCESS DENIED ERROR.`가 반환되어 live 호출에서 제외한다.
 
 관련 문서:
-- [data-sources.md](</C:/Users/digit/OneDrive/문서/New project/docs/data-sources.md>)
+- [data-sources.md](</F:/dev/parking-radar/docs/data-sources.md>)
 
 ## 4. 공항별 세부 주차장 기준
 
@@ -116,7 +127,7 @@ curl http://localhost:8000/admin/collector-status
 - `T2 장기주차장`
 - `T2 예약주차장`
 
-이름 표기가 원본 API에서 흔들리는 경우가 있어, 파서와 시드 데이터 모두 정규화된 lot 이름 기준을 유지한다.
+실제 `15095047` 응답에서는 `T1 단기주차장지하1층`처럼 층 정보가 붙은 이름도 내려온다. 파서는 실데이터 이름을 유지하되 단기/장기/예약/화물 성격을 분류하고, 요금 규칙은 `T1 단기주차장` 같은 접두어 기준으로 연결한다.
 
 ## 5. 시각 기준
 
@@ -136,7 +147,7 @@ curl http://localhost:8000/admin/collector-status
 row-level `collected_at`은 백엔드에 남아 있지만, 메인 UI에서는 직접 노출하지 않는다.
 
 관련 문서:
-- [time-and-collector.md](</C:/Users/digit/OneDrive/문서/New project/docs/time-and-collector.md>)
+- [time-and-collector.md](</F:/dev/parking-radar/docs/time-and-collector.md>)
 
 ## 6. 수동 수집 버튼
 
@@ -185,10 +196,11 @@ row-level `collected_at`은 백엔드에 남아 있지만, 메인 UI에서는 �
 - 이때는 `UPSTREAM_RATE_LIMIT_BACKOFF_SECONDS` 동안만 수집기가 자동으로 API 호출을 건너뛴다.
 - 같은 인증키를 쓰는 live 수집기는 동시에 하나만 유지한다.
 - `2026-04-30` 기준 ODROID에는 별도 프로젝트 `airport-parking-monitor`의 `parking-collector.timer`가 10분마다 같은 키로 `GMP,PUS,CJU,TAE`를 호출하고 있었고, 현재는 중지했다.
-- 현재 ODROID `parking-radar`는 `CJJ,CJU,GMP,HIN,KUV,KWJ,MWX,PUS,RSU,TAE,USN,WJU,YNY`를 10분마다 1회 응답에서 함께 처리하도록 설정한다.
+- 현재 ODROID `parking-radar`는 `CJJ,CJU,GMP,HIN,ICN,KUV,KWJ,MWX,PUS,RSU,TAE,USN,WJU,YNY`를 10분마다 처리하도록 설정한다.
+- 한국공항공사 소스가 한도 초과 상태여도 인천공항 전용 주차/요금 소스는 같은 수집 실행 안에서 계속 시도한다.
 - `2026-05-01 06:13:53 KST` ODROID에서 자동 재시도했지만 원 API가 다시 `resultCode=99`를 반환했다.
 - 같은 시각 ODROID에서 원 API를 직접 호출해도 동일한 99 응답이 반환되어, 최신 데이터가 `2026-04-28 17:18:02 KST`에 멈춘 직접 원인은 앱 내부 중단이 아니라 원 API의 키 제한 상태로 본다.
-- `2026-05-01` 확인 기준 ODROID의 활성 중복 수집기는 발견되지 않았다. 운영 장애 조사 시 WSL2는 별도 개발/테스트 환경으로 보고, 사용자가 명시하지 않으면 건드리지 않는다.
+- `2026-05-01` 확인 기준 ODROID의 활성 중복 수집기는 발견되지 않았다. 운영 장애 조사 시 사용자가 명시하지 않은 다른 WSL2 프로젝트의 컨테이너/프로세스는 임의로 중지하거나 변경하지 않는다.
 - 임시 운영 조치로 ODROID의 `UPSTREAM_RATE_LIMIT_BACKOFF_SECONDS`를 `409567`로 변경해 다음 원 API 재시도를 `2026-05-06 00:00:00 KST` 이후로 미뤘다.
 - ODROID에는 `parking-radar-restore-backoff.timer`를 등록해 `2026-05-05 06:00:00 KST`에 backoff 값을 `3600`으로 되돌리고 backend 컨테이너를 재생성하도록 예약했다.
 
@@ -203,12 +215,15 @@ row-level `collected_at`은 백엔드에 남아 있지만, 메인 UI에서는 �
 - 마지막 선택 정보는 브라우저 localStorage에 저장되고 다음 접속 시 복원된다.
 - 화면 데이터는 60초마다 자동으로 다시 읽는다. 자동 갱신은 원 API 수집을 강제로 실행하지 않고, 백엔드에 이미 저장된 현재/분석 데이터를 다시 조회한다.
 - 브라우저 탭이 숨겨져 있으면 주기 갱신을 건너뛰고, 다시 보이거나 포커스를 얻으면 현재 선택 기준으로 조용히 갱신한다.
+- 비행편 마커도 같은 대시보드 새로고침 흐름에서 다시 조회한다.
+- 백엔드는 비행편 API 응답을 5분 동안 캐시해 차트 갱신 때문에 외부 API 호출이 과도하게 늘지 않도록 한다.
 
 스코프가 함께 바뀌는 패널:
 
 - 현재 잔여 주차면
 - 현재 점유율
 - 최근 7일 시계열
+- 선택 공항 출도착 비행편 마커
 - 요일 x 시간 평균 잔여 주차면
 - 요일별 시간대 상세 패턴
 - 요일별 임계 달성 시간
@@ -227,12 +242,12 @@ row-level `collected_at`은 백엔드에 남아 있지만, 메인 UI에서는 �
 
 이미 만들어둔 주요 배포 자산:
 
-- [docker-compose.odroid.yml](</C:/Users/digit/OneDrive/문서/New project/docker-compose.odroid.yml>)
-- [.env.odroid](</C:/Users/digit/OneDrive/문서/New project/.env.odroid>)
-- [scripts/deploy-odroid.ps1](</C:/Users/digit/OneDrive/문서/New project/scripts/deploy-odroid.ps1>)
-- [scripts/odroid-status.ps1](</C:/Users/digit/OneDrive/문서/New project/scripts/odroid-status.ps1>)
-- [deploy/odroid/remote-deploy.sh](</C:/Users/digit/OneDrive/문서/New project/deploy/odroid/remote-deploy.sh>)
-- [deploy/odroid/bootstrap-docker.sh](</C:/Users/digit/OneDrive/문서/New project/deploy/odroid/bootstrap-docker.sh>)
+- [docker-compose.odroid.yml](</F:/dev/parking-radar/docker-compose.odroid.yml>)
+- [.env.odroid](</F:/dev/parking-radar/.env.odroid>)
+- [scripts/deploy-odroid.ps1](</F:/dev/parking-radar/scripts/deploy-odroid.ps1>)
+- [scripts/odroid-status.ps1](</F:/dev/parking-radar/scripts/odroid-status.ps1>)
+- [deploy/odroid/remote-deploy.sh](</F:/dev/parking-radar/deploy/odroid/remote-deploy.sh>)
+- [deploy/odroid/bootstrap-docker.sh](</F:/dev/parking-radar/deploy/odroid/bootstrap-docker.sh>)
 
 배포 대상 기본값:
 
@@ -243,28 +258,31 @@ row-level `collected_at`은 백엔드에 남아 있지만, 메인 UI에서는 �
 비밀번호는 저장하지 않는 것이 원칙이다.
 
 관련 문서:
-- [deployment.md](</C:/Users/digit/OneDrive/문서/New project/docs/deployment.md>)
-- [deploy/odroid/README.md](</C:/Users/digit/OneDrive/문서/New project/deploy/odroid/README.md>)
+- [deployment.md](</F:/dev/parking-radar/docs/deployment.md>)
+- [deploy/odroid/README.md](</F:/dev/parking-radar/deploy/odroid/README.md>)
 
 ## 10. 테스트 기준
 
 현재 기준으로 반드시 유지해야 하는 검증 축:
 
+- WSL2 셸에서 1차 테스트
+- WSL2 Docker에서 2차 테스트
 - 백엔드 pytest
 - 프론트 Vitest
 - Docker 컨테이너 내부 실행
 - 반응형 렌더링 확인
 - 시계열 툴팁 확인
+- 시계열 비행편 마커와 편명/출도착 정보 표시 확인
 - 수동 수집 성공 / 쿨다운 제한 확인
 - `collector-status` 기반 모드 확인
 
 마지막 확인 기준:
 
-- 백엔드: `26 passed`
-- 프론트: `20 passed`
+- 백엔드: `44 passed`
+- 프론트: `22 passed`
 
 관련 문서:
-- [testing.md](</C:/Users/digit/OneDrive/문서/New project/docs/testing.md>)
+- [testing.md](</F:/dev/parking-radar/docs/testing.md>)
 
 ## 11. 운영 중 자주 헷갈리는 점
 
@@ -276,7 +294,7 @@ row-level `collected_at`은 백엔드에 남아 있지만, 메인 UI에서는 �
 - SQLite 런타임 파일을 OneDrive bind mount에 직접 두면 간헐 오류가 날 수 있다.
 
 관련 문서:
-- [troubleshooting.md](</C:/Users/digit/OneDrive/문서/New project/docs/troubleshooting.md>)
+- [troubleshooting.md](</F:/dev/parking-radar/docs/troubleshooting.md>)
 
 ## 12. 다음 변경 시 같이 갱신해야 하는 문서
 
@@ -292,8 +310,11 @@ row-level `collected_at`은 백엔드에 남아 있지만, 메인 UI에서는 �
 
 ## 13. WSL 테스트 기준
 
-- 모든 테스트 기준 환경은 `WSL2 + Docker`이다.
-- 로컬 테스트 결과를 문서에 남길 때도 `WSL2`에서 실행한 컨테이너 테스트 결과를 기준으로 적는다.
+- 모든 테스트 기준 환경은 `WSL2`이다.
+- Windows 로컬 테스트는 지양하고 참고 결과로만 취급한다.
+- 1차 테스트는 `WSL2` 셸에서 로컬 런타임으로 실행한다.
+- 2차 테스트는 `WSL2 + Docker`에서 실행한다.
+- ODROID 배포는 1차/2차 테스트가 모두 통과한 뒤 진행한다.
 - Windows PowerShell은 배포와 원격 상태 확인 보조 환경으로 취급한다.
 ## 14. Live Seed Policy
 

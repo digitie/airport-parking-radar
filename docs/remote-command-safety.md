@@ -108,9 +108,9 @@ SQLite의 `DateTime` 컬럼이 문자열로 저장될 때는 `2026-04-27 12:00:0
 
 ## 관련 문서
 
-- [docs/deployment.md](</C:/Users/digit/OneDrive/문서/New project/docs/deployment.md>)
-- [docs/troubleshooting.md](</C:/Users/digit/OneDrive/문서/New project/docs/troubleshooting.md>)
-- [docs/current-state.md](</C:/Users/digit/OneDrive/문서/New project/docs/current-state.md>)
+- [docs/deployment.md](</F:/dev/parking-radar/docs/deployment.md>)
+- [docs/troubleshooting.md](</F:/dev/parking-radar/docs/troubleshooting.md>)
+- [docs/current-state.md](</F:/dev/parking-radar/docs/current-state.md>)
 ## 8. Docker stdin heredoc
 
 - `docker run ... python - <<'PY'` 또는 `docker exec ... python - <<'PY'` 형태로 표준입력을 넘길 때는 `-i`를 반드시 넣는다.

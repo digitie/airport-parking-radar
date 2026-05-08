@@ -24,9 +24,12 @@ class Settings(BaseSettings):
     upstream_rate_limit_backoff_seconds: int = 3600
     api_timeout_seconds: int = 15
     data_go_kr_service_key: str | None = None
-    enable_incheon_collection: bool = False
+    enable_flight_status_markers: bool = True
+    flight_status_cache_seconds: int = 300
+    enable_incheon_collection: bool = True
+    enable_incheon_fee_collection: bool = False
     enable_fee_collection: bool = False
-    airport_codes_csv: str = "CJJ,CJU,GMP,HIN,KUV,KWJ,MWX,PUS,RSU,TAE,USN,WJU,YNY"
+    airport_codes_csv: str = "CJJ,CJU,GMP,HIN,ICN,KUV,KWJ,MWX,PUS,RSU,TAE,USN,WJU,YNY"
     cors_origins_csv: str = "http://localhost:3000"
     api_prefix: str = ""
     use_sample_client_when_no_key: bool = True

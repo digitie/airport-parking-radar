@@ -5,6 +5,7 @@ import { DashboardScreen } from "@/components/dashboard-screen";
 import type {
   Airport,
   CollectorStatusResponse,
+  FlightStatusResponse,
   ParkingStatus,
   ParkingTimeSeriesResponse,
   ThresholdEvent,
@@ -156,6 +157,30 @@ const timeSeries: ParkingTimeSeriesResponse = {
   ],
 };
 
+const flightStatus: FlightStatusResponse = {
+  generated_at: "2026-04-25T00:30:00.000Z",
+  airport_code: "GMP",
+  local_date: "2026-04-25",
+  source: "sample_flight_status",
+  status: "sample",
+  error_message: null,
+  items: [
+    {
+      airport_code: "GMP",
+      direction: "departure",
+      flight_number: "KE1101",
+      airline: "대한항공",
+      scheduled_at: "2026-04-24T12:30:00.000Z",
+      estimated_at: "2026-04-24T12:40:00.000Z",
+      marker_at: "2026-04-24T12:40:00.000Z",
+      origin_airport: "김포",
+      destination_airport: "제주",
+      status: "출발",
+      line_type: "국내",
+    },
+  ],
+};
+
 const collectorStatus: CollectorStatusResponse = {
   scheduler_enabled: true,
   collect_interval_seconds: 300,
@@ -187,6 +212,7 @@ describe("DashboardScreen", () => {
         thresholdInsights={thresholdInsights}
         weekdayHourlyPatterns={weekdayHourlyPatterns}
         timeSeries={timeSeries}
+        flightStatus={flightStatus}
         collectorStatus={collectorStatus}
         isMobile={false}
         loading={false}
@@ -232,6 +258,7 @@ describe("DashboardScreen", () => {
         thresholdInsights={thresholdInsights}
         weekdayHourlyPatterns={weekdayHourlyPatterns}
         timeSeries={timeSeries}
+        flightStatus={flightStatus}
         collectorStatus={collectorStatus}
         isMobile
         loading={false}
@@ -268,6 +295,7 @@ describe("DashboardScreen", () => {
         thresholdInsights={thresholdInsights}
         weekdayHourlyPatterns={weekdayHourlyPatterns}
         timeSeries={timeSeries}
+        flightStatus={flightStatus}
         collectorStatus={collectorStatus}
         isMobile={false}
         loading={false}
@@ -300,6 +328,7 @@ describe("DashboardScreen", () => {
         thresholdInsights={thresholdInsights}
         weekdayHourlyPatterns={weekdayHourlyPatterns}
         timeSeries={timeSeries}
+        flightStatus={flightStatus}
         collectorStatus={collectorStatus}
         isMobile={false}
         loading={false}

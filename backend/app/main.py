@@ -5,7 +5,7 @@ import logging
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from contextlib import suppress
-from datetime import timedelta
+from datetime import date, timedelta
 
 from fastapi import Depends, FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -23,6 +23,7 @@ from app.schemas import (
     CollectorStatusResponse,
     FeeCalculationRequest,
     FeeCalculationResponse,
+    FlightStatusResponse,
     HealthResponse,
     HourlyBucket,
     ParkingCurrentResponse,
@@ -49,6 +50,7 @@ from app.services.analytics import (
 )
 from app.services.collection import CollectionService
 from app.services.fee_calculator import calculate_total_fee
+from app.services.flight_status import FlightStatusService
 from app.services.sample_data import seed_sample_database
 
 logger = logging.getLogger(__name__)
@@ -65,6 +67,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         app.state.session_factory = session_factory
         app.state.settings = resolved_settings
         app.state.collection_service = CollectionService(resolved_settings)
+        app.state.flight_status_service = FlightStatusService(resolved_settings)
         app.state.scheduler_task = None
 
         if resolved_settings.seed_sample_data and app.state.collection_service.client_mode == "sample":
@@ -113,6 +116,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     def get_collection_service(request: Request) -> CollectionService:
         return request.app.state.collection_service
+
+    def get_flight_status_service(request: Request) -> FlightStatusService:
+        return request.app.state.flight_status_service
 
     @app.get("/health", response_model=HealthResponse)
     async def health(session: AsyncSession = Depends(get_db)) -> HealthResponse:
@@ -274,6 +280,22 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             items=[TimeSeriesPoint(**point) for point in build_time_series(snapshots, days=days, interval_minutes=interval_minutes)],
         )
 
+    @app.get("/flights/status", response_model=FlightStatusResponse)
+    async def flight_status(
+        airport_code: str = Query(..., min_length=3, max_length=3),
+        local_date: str | None = Query(default=None),
+        service: FlightStatusService = Depends(get_flight_status_service),
+    ) -> FlightStatusResponse:
+        if local_date is None:
+            query_date = to_seoul(now_utc()).date()
+        else:
+            try:
+                query_date = date.fromisoformat(local_date)
+            except ValueError as exc:
+                raise HTTPException(status_code=400, detail="local_date는 YYYY-MM-DD 형식이어야 합니다.") from exc
+
+        return FlightStatusResponse(**await service.get_status(airport_code, query_date))
+
     @app.get("/parking/analytics/threshold-events", response_model=list[ThresholdEvent])
     async def threshold_events(
         airport_code: str | None = Query(default=None),
@@ -337,14 +359,6 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         if airport is None:
             raise HTTPException(status_code=404, detail="지원하지 않는 공항입니다.")
 
-        if airport.code == "ICN":
-            return FeeCalculationResponse(
-                supported=False,
-                airport_code=airport.code,
-                vehicle_size=payload.vehicle_size,
-                message="인천공항은 현재 요금 계산을 지원하지 않습니다.",
-            )
-
         query = select(ParkingFeeRule).where(
             ParkingFeeRule.airport_id == airport.id,
             ParkingFeeRule.vehicle_size == payload.vehicle_size,
@@ -378,7 +392,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         service: CollectionService = Depends(get_collection_service),
     ) -> CollectionSummary:
         rate_limit_state = await service.get_upstream_rate_limit_state(session)
-        if rate_limit_state.is_blocked and rate_limit_state.blocked_until is not None:
+        can_collect_incheon = resolved_settings.enable_incheon_collection or resolved_settings.enable_incheon_fee_collection
+        if rate_limit_state.is_blocked and rate_limit_state.blocked_until is not None and not can_collect_incheon:
             blocked_until_kst = to_seoul(rate_limit_state.blocked_until).strftime("%Y-%m-%d %H:%M:%S KST")
             raise HTTPException(
                 status_code=429,

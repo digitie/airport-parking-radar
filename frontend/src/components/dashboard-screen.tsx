@@ -7,6 +7,7 @@ import { formatDateTimeWithZone, formatMinutesOfDay, formatNumber } from "@/lib/
 import type {
   Airport,
   CollectorStatusResponse,
+  FlightStatusResponse,
   ParkingLot,
   ParkingStatus,
   ParkingTimeSeriesResponse,
@@ -30,6 +31,7 @@ type DashboardScreenProps = {
   thresholdInsights: ThresholdInsightsResponse | null;
   weekdayHourlyPatterns: WeekdayHourlyPattern[];
   timeSeries: ParkingTimeSeriesResponse | null;
+  flightStatus: FlightStatusResponse | null;
   collectorStatus: CollectorStatusResponse | null;
   isMobile: boolean;
   loading: boolean;
@@ -204,6 +206,7 @@ export function DashboardScreen({
   thresholdInsights,
   weekdayHourlyPatterns,
   timeSeries,
+  flightStatus,
   collectorStatus,
   isMobile,
   loading,
@@ -416,7 +419,7 @@ export function DashboardScreen({
       )}
 
       <section className="analytics-grid">
-        <HistoryChart series={timeSeries} scopeLabel={scopeLabel} />
+        <HistoryChart flightStatus={flightStatus} series={timeSeries} scopeLabel={scopeLabel} />
 
         <article className="panel-surface panel-full-span">
           <div className="panel-head">

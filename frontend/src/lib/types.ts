@@ -92,6 +92,30 @@ export type ParkingTimeSeriesResponse = {
   items: TimeSeriesPoint[];
 };
 
+export type FlightStatusItem = {
+  airport_code: string;
+  direction: "departure" | "arrival" | "unknown";
+  flight_number: string;
+  airline: string | null;
+  scheduled_at: string;
+  estimated_at: string | null;
+  marker_at: string;
+  origin_airport: string;
+  destination_airport: string;
+  status: string | null;
+  line_type: string | null;
+};
+
+export type FlightStatusResponse = {
+  generated_at: string;
+  airport_code: string;
+  local_date: string;
+  source: string;
+  status: string;
+  error_message: string | null;
+  items: FlightStatusItem[];
+};
+
 export type HourlyBucket = {
   hour: number;
   average_available_spaces: number;

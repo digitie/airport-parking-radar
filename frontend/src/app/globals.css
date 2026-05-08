@@ -444,6 +444,88 @@ select {
   stroke: var(--red);
 }
 
+.flight-marker-line {
+  stroke: rgba(31, 37, 48, 0.28);
+  stroke-width: 1.4;
+  stroke-dasharray: 4 5;
+}
+
+.flight-marker-dot {
+  fill: var(--surface-strong);
+  stroke: rgba(31, 37, 48, 0.34);
+  stroke-width: 1.8;
+}
+
+.flight-marker-departure .flight-marker-line,
+.flight-marker-departure .flight-marker-dot {
+  stroke: #2563eb;
+}
+
+.flight-marker-arrival .flight-marker-line,
+.flight-marker-arrival .flight-marker-dot {
+  stroke: #db2777;
+}
+
+.flight-marker-summary {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  margin-top: 12px;
+  color: var(--muted);
+  font-size: 0.84rem;
+}
+
+.flight-marker-summary strong {
+  color: var(--ink);
+}
+
+.flight-marker-error {
+  color: var(--red);
+}
+
+.flight-marker-list {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+}
+
+.flight-chip {
+  flex: 0 0 auto;
+  min-width: 138px;
+  border: 1px solid rgba(31, 37, 48, 0.1);
+  border-radius: 12px;
+  background: var(--surface-strong);
+  padding: 8px 10px;
+}
+
+.flight-chip strong,
+.flight-chip small {
+  display: block;
+}
+
+.flight-chip strong {
+  color: var(--ink);
+  font-size: 0.82rem;
+}
+
+.flight-chip small {
+  margin-top: 3px;
+  color: var(--muted);
+  font-size: 0.74rem;
+  white-space: nowrap;
+}
+
+.flight-chip.departure {
+  border-color: rgba(37, 99, 235, 0.22);
+}
+
+.flight-chip.arrival {
+  border-color: rgba(219, 39, 119, 0.22);
+}
+
 .history-tooltip {
   position: absolute;
   z-index: 2;

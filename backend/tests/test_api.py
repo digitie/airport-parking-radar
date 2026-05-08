@@ -138,6 +138,29 @@ def test_current_and_analytics(client) -> None:
     assert "sample_count" in threshold_insights_payload["weekday_items"][0]
 
 
+def test_flight_status_returns_sample_markers(client) -> None:
+    response = client.get("/flights/status", params={"airport_code": "GMP", "local_date": "2026-04-25"})
+    assert response.status_code == 200
+    payload = response.json()
+
+    assert payload["airport_code"] == "GMP"
+    assert payload["local_date"] == "2026-04-25"
+    assert payload["status"] == "sample"
+    assert payload["items"]
+    assert {item["direction"] for item in payload["items"]} >= {"departure", "arrival"}
+    assert_is_utc_iso(payload["generated_at"])
+    assert_is_utc_iso(payload["items"][0]["marker_at"])
+    assert payload["items"][0]["flight_number"]
+    assert payload["items"][0]["origin_airport"]
+    assert payload["items"][0]["destination_airport"]
+
+
+def test_flight_status_rejects_invalid_local_date(client) -> None:
+    response = client.get("/flights/status", params={"airport_code": "GMP", "local_date": "2026/04/25"})
+    assert response.status_code == 400
+    assert "YYYY-MM-DD" in response.json()["detail"]
+
+
 def test_fee_calculation(client) -> None:
     entry = datetime(2026, 4, 24, 9, 0, tzinfo=ZoneInfo("Asia/Seoul"))
     exit_at = entry + timedelta(hours=2)
@@ -157,7 +180,7 @@ def test_fee_calculation(client) -> None:
     assert payload["total_fee"] == 3000
 
 
-def test_incheon_fee_is_unsupported(client) -> None:
+def test_incheon_fee_calculation_is_supported(client) -> None:
     entry = datetime(2026, 4, 24, 9, 0, tzinfo=ZoneInfo("Asia/Seoul"))
     response = client.post(
         "/fees/calculate",
@@ -170,7 +193,9 @@ def test_incheon_fee_is_unsupported(client) -> None:
     )
 
     assert response.status_code == 200
-    assert response.json()["supported"] is False
+    payload = response.json()
+    assert payload["supported"] is True
+    assert payload["total_fee"] == 1000
 
 
 def test_admin_collect_returns_cooldown_error(tmp_path: Path) -> None:
@@ -199,7 +224,7 @@ def test_admin_collector_status(client) -> None:
     assert payload["collect_interval_seconds"] == 300
     assert payload["manual_collect_min_interval_seconds"] == 300
     assert payload["client_mode"] == "sample"
-    assert payload["enabled_sources"] == ["kac_parking"]
+    assert payload["enabled_sources"] == ["kac_parking", "incheon_parking"]
     assert payload["data_go_kr_service_key_configured"] is False
     assert payload["supported_airport_codes"] == ["GMP", "PUS", "CJU"]
     assert_is_utc_iso(payload["latest_snapshot_observed_at"])
@@ -241,6 +266,8 @@ def test_admin_collect_returns_upstream_rate_limit_error(tmp_path: Path) -> None
         data_go_kr_service_key="test-key",
         use_sample_client_when_no_key=False,
         seed_sample_data=False,
+        enable_incheon_collection=False,
+        enable_incheon_fee_collection=False,
     ) as client:
         asyncio.run(
             insert_collection_run(
@@ -254,6 +281,40 @@ def test_admin_collect_returns_upstream_rate_limit_error(tmp_path: Path) -> None
         response = client.post("/admin/collect")
         assert response.status_code == 429
         assert "공공데이터 API 요청 한도" in response.json()["detail"]
+
+
+def test_admin_collect_continues_incheon_when_kac_rate_limited(tmp_path: Path) -> None:
+    with build_client(
+        tmp_path,
+        seed_sample_data=False,
+        enable_incheon_collection=True,
+        enable_incheon_fee_collection=False,
+    ) as client:
+        service = client.app.state.collection_service
+        blocked_state = type(
+            "State",
+            (),
+            {
+                "is_blocked": True,
+                "blocked_until": now_utc() + timedelta(hours=1),
+                "source": "kac_parking",
+                "error_message": "kac_parking API error 99: LIMITED NUMBER OF SERVICE REQUESTS EXCEEDS ERROR.",
+            },
+        )()
+
+        with patch.object(
+            service,
+            "get_upstream_rate_limit_state",
+            new=AsyncMock(return_value=blocked_state),
+        ):
+            response = client.post("/admin/collect")
+
+        assert response.status_code == 200
+        payload = response.json()
+        assert payload["status"] == "partial_success"
+        assert payload["raw_response_count"] == 1
+        assert payload["snapshot_count"] >= 1
+        assert "LIMITED NUMBER OF SERVICE REQUESTS" in payload["errors"][0]
 
 
 def test_admin_collector_status_does_not_extend_rate_limit_from_skipped_runs(tmp_path: Path) -> None:

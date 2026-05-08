@@ -23,6 +23,9 @@ USE_SAMPLE_CLIENT_WHEN_NO_KEY=false
 COLLECT_INTERVAL_SECONDS=600
 MANUAL_COLLECT_MIN_INTERVAL_SECONDS=600
 UPSTREAM_RATE_LIMIT_BACKOFF_SECONDS=3600
+ENABLE_INCHEON_COLLECTION=true
+ENABLE_INCHEON_FEE_COLLECTION=true
+AIRPORT_CODES_CSV=CJJ,CJU,GMP,HIN,ICN,KUV,KWJ,MWX,PUS,RSU,TAE,USN,WJU,YNY
 DATA_GO_KR_SERVICE_KEY=...
 ```
 
@@ -38,6 +41,12 @@ DATA_GO_KR_SERVICE_KEY=...
   - 10분
 - `MANUAL_COLLECT_MIN_INTERVAL_SECONDS=600`
   - 수동 수집도 10분 제한
+- `ENABLE_INCHEON_COLLECTION=true`
+  - 인천공항 주차 현황을 별도 API로 수집
+- `ENABLE_INCHEON_FEE_COLLECTION=true`
+  - 인천공항 주차요금 규칙을 별도 API로 수집
+- `AIRPORT_CODES_CSV`
+  - 인천공항까지 운영하려면 `ICN`을 반드시 포함
 
 - `client_mode=live` 상태에서는 `SEED_SAMPLE_DATA=false`를 기본값으로 사용한다.
 - 샘플 시드가 필요하면 `client_mode=sample`에서만 켠다.
@@ -47,7 +56,8 @@ DATA_GO_KR_SERVICE_KEY=...
 - live 수집기가 한도 초과를 감지하면 `UPSTREAM_RATE_LIMIT_BACKOFF_SECONDS` 동안 API 호출을 건너뛴다.
 - `15056803` 공식 문서상 개발계정 트래픽은 `5,000/일`이지만, 실제 운영에서는 더 이르게 `LIMITED NUMBER OF SERVICE REQUESTS EXCEEDS ERROR.`가 발생할 수 있다.
 - 그래서 ODROID live는 하루 단위로 멈추지 않고, 짧은 backoff 뒤 다시 시도해 회복 시점을 놓치지 않도록 한다.
-- ODROID live 저장 대상 공항은 `CJJ,CJU,GMP,HIN,KUV,KWJ,MWX,PUS,RSU,TAE,USN,WJU,YNY`다.
+- ODROID live 저장 대상 공항은 `CJJ,CJU,GMP,HIN,ICN,KUV,KWJ,MWX,PUS,RSU,TAE,USN,WJU,YNY`다.
+- 한국공항공사 `15056803`이 한도 초과 상태여도 인천공항 전용 `15095047`, `15095053`은 계속 시도한다.
 - ODROID에는 `parking-radar` 외 별도 수집기(`airport-parking-monitor`)를 동시에 띄우지 않는다.
 - 특히 `parking-collector.timer`가 살아 있으면 10분마다 `GMP,PUS,CJU,TAE`를 추가 호출해 같은 인증키를 소모한다.
 
@@ -59,11 +69,11 @@ DATA_GO_KR_SERVICE_KEY=...
 
 ## ODROID M1S 배포 파일
 
-- 운영용 compose: [docker-compose.odroid.yml](</C:/Users/digit/OneDrive/문서/New project/docker-compose.odroid.yml>)
-- 운영용 환경 파일: [/.env.odroid](</C:/Users/digit/OneDrive/문서/New project/.env.odroid>)
-- 로컬 배포 스크립트: [scripts/deploy-odroid.ps1](</C:/Users/digit/OneDrive/문서/New project/scripts/deploy-odroid.ps1>)
-- 상태 확인 스크립트: [scripts/odroid-status.ps1](</C:/Users/digit/OneDrive/문서/New project/scripts/odroid-status.ps1>)
-- 원격 실행 스크립트: [deploy/odroid/remote-deploy.sh](</C:/Users/digit/OneDrive/문서/New project/deploy/odroid/remote-deploy.sh>)
+- 운영용 compose: [docker-compose.odroid.yml](</F:/dev/parking-radar/docker-compose.odroid.yml>)
+- 운영용 환경 파일: [/.env.odroid](</F:/dev/parking-radar/.env.odroid>)
+- 로컬 배포 스크립트: [scripts/deploy-odroid.ps1](</F:/dev/parking-radar/scripts/deploy-odroid.ps1>)
+- 상태 확인 스크립트: [scripts/odroid-status.ps1](</F:/dev/parking-radar/scripts/odroid-status.ps1>)
+- 원격 실행 스크립트: [deploy/odroid/remote-deploy.sh](</F:/dev/parking-radar/deploy/odroid/remote-deploy.sh>)
 
 기본 저장 정보:
 
@@ -82,6 +92,15 @@ DATA_GO_KR_SERVICE_KEY=...
 비밀번호는 저장하지 않으며, 배포 시에만 입력한다.
 
 ## ODROID 배포 절차
+
+ODROID 배포 전에는 아래 순서를 반드시 따른다.
+
+1. `WSL2` 셸에서 1차 테스트를 실행한다.
+2. `WSL2 + Docker`에서 2차 테스트를 실행한다.
+3. 두 단계가 모두 통과하면 Windows PowerShell에서 배포 스크립트를 실행한다.
+4. 배포 후 ODROID 웹/API 스모크 체크를 확인한다.
+
+Windows 로컬 PowerShell 테스트만으로 ODROID에 배포하지 않는다. PowerShell은 배포 스크립트 실행과 원격 상태 확인 보조 도구로만 사용한다.
 
 ```powershell
 .\scripts\deploy-odroid.ps1
@@ -191,13 +210,16 @@ curl -X POST http://localhost:8000/admin/collect
 
 관련 문서:
 
-- [current-state.md](</C:/Users/digit/OneDrive/문서/New project/docs/current-state.md>)
-- [time-and-collector.md](</C:/Users/digit/OneDrive/문서/New project/docs/time-and-collector.md>)
+- [current-state.md](</F:/dev/parking-radar/docs/current-state.md>)
+- [time-and-collector.md](</F:/dev/parking-radar/docs/time-and-collector.md>)
 
 ## WSL 테스트 기준
 
-- 로컬 개발과 테스트의 기준 환경은 `WSL2 + Docker`이다.
+- 테스트 기준 환경은 `WSL2`이다.
+- Windows 로컬 테스트는 지양한다.
+- 1차 테스트는 `WSL2` 셸에서 실행한다.
+- 2차 테스트는 `WSL2 + Docker`에서 실행한다.
+- 테스트 합격 기준은 1차/2차가 모두 통과한 결과를 따른다.
 - Windows PowerShell은 `deploy-odroid.ps1` 같은 배포 스크립트 실행과 상태 확인에 사용한다.
-- 테스트 합격 기준은 `WSL2`에서 실행한 컨테이너 테스트 결과를 따른다.
-- 단, ODROID live 장애 조사와 운영 복구는 ODROID만 대상으로 한다.
-- 사용자가 명시하지 않으면 WSL2에서 실행 중인 다른 프로젝트의 컨테이너, 타이머, 프로세스는 점검하거나 변경하지 않는다.
+- 단, ODROID live 장애 조사와 운영 복구는 ODROID를 대상으로 한다.
+- 사용자가 명시하지 않으면 WSL2에서 실행 중인 다른 프로젝트의 컨테이너, 타이머, 프로세스는 중지하거나 변경하지 않는다.

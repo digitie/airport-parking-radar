@@ -6,6 +6,7 @@ import { DASHBOARD_SELECTION_STORAGE_KEY } from "@/lib/dashboard-preferences";
 import type {
   Airport,
   CollectorStatusResponse,
+  FlightStatusResponse,
   ParkingCurrentResponse,
   ParkingTimeSeriesResponse,
   ThresholdInsightsResponse,
@@ -91,6 +92,16 @@ const thresholdInsightsPayload: ThresholdInsightsResponse = {
   history_items: [],
 };
 
+const flightStatusPayload: FlightStatusResponse = {
+  generated_at: "2026-04-26T00:00:00.000Z",
+  airport_code: "GMP",
+  local_date: "2026-04-26",
+  source: "sample_flight_status",
+  status: "sample",
+  error_message: null,
+  items: [],
+};
+
 function buildCollectorStatus(overrides: Partial<CollectorStatusResponse> = {}): CollectorStatusResponse {
   return {
     scheduler_enabled: true,
@@ -117,6 +128,7 @@ const apiClient = {
   getThresholdInsights: vi.fn(async () => thresholdInsightsPayload),
   getByWeekdayHour: vi.fn(async () => []),
   getTimeSeries: vi.fn(async () => timeSeriesPayload),
+  getFlightStatus: vi.fn(async () => flightStatusPayload),
   getCollectorStatus: vi.fn(async () => buildCollectorStatus()),
   runCollector: vi.fn(async () => ({
     collection_run_id: 1,
@@ -201,7 +213,9 @@ describe("DashboardApp", () => {
     await waitFor(() => {
       expect(apiClient.getCurrent.mock.calls.length).toBeGreaterThanOrEqual(2);
     });
-    expect(screen.getAllByText("64대").length).toBeGreaterThan(0);
+    await waitFor(() => {
+      expect(screen.getAllByText("64대").length).toBeGreaterThan(0);
+    });
     expect(screen.queryByText("데이터를 불러오는 중입니다.")).not.toBeInTheDocument();
   });
 });

@@ -8,8 +8,9 @@ import {
   formatDateTimeWithZone,
   formatNumber,
   getSeoulDateParts,
+  parseApiDate,
 } from "@/lib/format";
-import type { ParkingTimeSeriesResponse, TimeSeriesPoint } from "@/lib/types";
+import type { FlightStatusItem, FlightStatusResponse, ParkingTimeSeriesResponse, TimeSeriesPoint } from "@/lib/types";
 
 const CHART_MIN_WIDTH = 1280;
 const CHART_HEIGHT = 280;
@@ -19,6 +20,7 @@ const GRID_LINES = 4;
 const TOOLTIP_EDGE_PADDING = 88;
 
 type HistoryChartProps = {
+  flightStatus: FlightStatusResponse | null;
   series: ParkingTimeSeriesResponse | null;
   scopeLabel: string;
 };
@@ -33,6 +35,12 @@ type AxisMarker = {
   x: number;
   dateLabel: string | null;
   timeLabel: string;
+};
+
+type FlightChartMarker = FlightStatusItem & {
+  x: number;
+  label: string;
+  markerY: number;
 };
 
 function clamp(value: number, min: number, max: number): number {
@@ -118,6 +126,71 @@ function buildStepAreaPath(points: ChartPoint[]): string {
   return path.join(" ");
 }
 
+function formatFlightDirection(direction: FlightStatusItem["direction"]): string {
+  if (direction === "departure") {
+    return "출발";
+  }
+  if (direction === "arrival") {
+    return "도착";
+  }
+  return "운항";
+}
+
+function formatFlightMarkerLabel(flight: FlightStatusItem): string {
+  const statusLabel = flight.status ? ` (${flight.status})` : "";
+  const airlineLabel = flight.airline ? `${flight.airline} ` : "";
+  return `${formatDateTimeWithZone(flight.marker_at)} ${formatFlightDirection(flight.direction)} ${airlineLabel}${flight.flight_number} ${flight.origin_airport} -> ${flight.destination_airport}${statusLabel}`;
+}
+
+function interpolateMarkerX(markerAt: string, points: ChartPoint[]): number | null {
+  if (points.length === 0) {
+    return null;
+  }
+
+  const markerTime = parseApiDate(markerAt).getTime();
+  const firstTime = parseApiDate(points[0].bucket_at).getTime();
+  const lastTime = parseApiDate(points[points.length - 1].bucket_at).getTime();
+
+  if (markerTime < firstTime || markerTime > lastTime) {
+    return null;
+  }
+
+  for (let index = 1; index < points.length; index += 1) {
+    const previousPoint = points[index - 1];
+    const nextPoint = points[index];
+    const previousTime = parseApiDate(previousPoint.bucket_at).getTime();
+    const nextTime = parseApiDate(nextPoint.bucket_at).getTime();
+
+    if (markerTime <= nextTime) {
+      const ratio = nextTime === previousTime ? 0 : (markerTime - previousTime) / (nextTime - previousTime);
+      return previousPoint.x + (nextPoint.x - previousPoint.x) * ratio;
+    }
+  }
+
+  return points[points.length - 1].x;
+}
+
+function buildFlightMarkers(flightStatus: FlightStatusResponse | null, points: ChartPoint[]): FlightChartMarker[] {
+  if (!flightStatus || flightStatus.items.length === 0 || points.length === 0) {
+    return [];
+  }
+
+  return flightStatus.items.reduce<FlightChartMarker[]>((markers, flight) => {
+    const x = interpolateMarkerX(flight.marker_at, points);
+    if (x === null) {
+      return markers;
+    }
+
+    markers.push({
+      ...flight,
+      x,
+      label: formatFlightMarkerLabel(flight),
+      markerY: CHART_PADDING_Y + 12 + (markers.length % 3) * 9,
+    });
+    return markers;
+  }, []);
+}
+
 function findLowestPoint(points: TimeSeriesPoint[]): TimeSeriesPoint {
   return points.reduce((lowest, point) => (point.available_spaces < lowest.available_spaces ? point : lowest), points[0]);
 }
@@ -129,7 +202,7 @@ function findHighestPoint(points: TimeSeriesPoint[]): TimeSeriesPoint {
   );
 }
 
-export function HistoryChart({ series, scopeLabel }: HistoryChartProps) {
+export function HistoryChart({ flightStatus, series, scopeLabel }: HistoryChartProps) {
   const [activePointIndex, setActivePointIndex] = useState<number | null>(null);
   const scrollRef = useRef<HTMLDivElement | null>(null);
 
@@ -167,6 +240,10 @@ export function HistoryChart({ series, scopeLabel }: HistoryChartProps) {
   const chartWidth = Math.max(CHART_MIN_WIDTH, labelIndexes.length * 64);
   const chartPoints = buildChartPoints(points, chartWidth);
   const axisMarkers = buildAxisMarkers(chartPoints, labelIndexes);
+  const flightMarkers = buildFlightMarkers(flightStatus, chartPoints);
+  const flightDepartureCount = flightMarkers.filter((flight) => flight.direction === "departure").length;
+  const flightArrivalCount = flightMarkers.filter((flight) => flight.direction === "arrival").length;
+  const visibleFlightSample = flightMarkers.slice(0, 12);
   const latestPoint = points[points.length - 1];
   const lowestPoint = findLowestPoint(points);
   const highestPoint = findHighestPoint(points);
@@ -283,6 +360,24 @@ export function HistoryChart({ series, scopeLabel }: HistoryChartProps) {
               <path className="history-area" d={buildStepAreaPath(chartPoints)} />
               <path className="history-line" d={buildStepLinePath(chartPoints)} fill="none" />
 
+              {flightMarkers.map((marker, index) => (
+                <g
+                  key={`${marker.flight_number}-${marker.marker_at}-${marker.direction}-${index}`}
+                  className={`flight-marker flight-marker-${marker.direction}`}
+                  data-testid="flight-marker"
+                >
+                  <title>{marker.label}</title>
+                  <line
+                    className="flight-marker-line"
+                    x1={marker.x}
+                    x2={marker.x}
+                    y1={CHART_PADDING_Y}
+                    y2={CHART_HEIGHT - CHART_PADDING_Y}
+                  />
+                  <circle className="flight-marker-dot" cx={marker.x} cy={marker.markerY} r="4" />
+                </g>
+              ))}
+
               {activePoint ? (
                 <>
                   <line
@@ -347,6 +442,38 @@ export function HistoryChart({ series, scopeLabel }: HistoryChartProps) {
           </div>
         </div>
       </div>
+
+      {flightStatus ? (
+        <div className="flight-marker-summary" data-testid="flight-marker-summary">
+          <strong>비행편 마커</strong>
+          {flightMarkers.length > 0 ? (
+            <span>
+              출발 {formatNumber(flightDepartureCount)}편 / 도착 {formatNumber(flightArrivalCount)}편
+            </span>
+          ) : (
+            <span>현재 시계열 범위 안에 표시할 비행편이 없습니다.</span>
+          )}
+          {flightStatus.error_message ? <span className="flight-marker-error">{flightStatus.error_message}</span> : null}
+        </div>
+      ) : null}
+
+      {visibleFlightSample.length > 0 ? (
+        <div className="flight-marker-list" data-testid="flight-marker-list">
+          {visibleFlightSample.map((flight, index) => (
+            <span key={`${flight.flight_number}-${flight.marker_at}-${index}`} className={`flight-chip ${flight.direction}`}>
+              <strong>
+                {formatAxisTimeLabel(flight.marker_at)} {flight.flight_number}
+              </strong>
+              <small>
+                {formatFlightDirection(flight.direction)} {flight.origin_airport} {"->"} {flight.destination_airport}
+              </small>
+            </span>
+          ))}
+          {flightMarkers.length > visibleFlightSample.length ? (
+            <span className="flight-chip more">외 {formatNumber(flightMarkers.length - visibleFlightSample.length)}편</span>
+          ) : null}
+        </div>
+      ) : null}
     </article>
   );
 }

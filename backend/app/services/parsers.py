@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
@@ -66,6 +67,27 @@ KAC_LOT_SOURCE_IDS = {
     },
 }
 
+INCHEON_FEE_PROFILES = [
+    {
+        "fee_id": "FB00000001",
+        "max_id": "NF00000001",
+        "lot_prefixes": ["T1 단기주차장", "T2 단기주차장"],
+    },
+    {
+        "fee_id": "FB00000002",
+        "max_id": "NF00000002",
+        "lot_prefixes": ["T1 장기주차장", "T2 장기주차장"],
+    },
+    {
+        "fee_id": "FB00000003",
+        "max_id": "NF00000003",
+        "lot_prefixes": ["T1 예약주차장", "T2 예약주차장"],
+    },
+]
+
+TIME_AMOUNT_PATTERN = re.compile(r"(\d{2}):(\d{2})")
+WON_AMOUNT_PATTERN = re.compile(r"([\d,]+)원")
+
 
 @dataclass(slots=True)
 class ParsedParkingObservation:
@@ -129,6 +151,51 @@ def _safe_float(value: Any) -> float | None:
 def _slug_lot_id(prefix: str, name: str) -> str:
     normalized = "".join(char.lower() if char.isalnum() else "-" for char in name)
     return f"{prefix}-{normalized}".strip("-")
+
+
+def _json_items(document: dict[str, Any]) -> list[dict[str, Any]]:
+    items = document.get("response", {}).get("body", {}).get("items", [])
+    if isinstance(items, dict):
+        items = items.get("item", [])
+    if isinstance(items, dict):
+        items = [items]
+    if isinstance(items, list):
+        return [item for item in items if isinstance(item, dict)]
+    return []
+
+
+def _classify_incheon_lot_category(lot_name: str) -> str:
+    if "예약" in lot_name:
+        return "reserved"
+    if "장기" in lot_name:
+        return "long"
+    if "화물" in lot_name:
+        return "cargo"
+    if "단기" in lot_name:
+        return "short"
+    return "incheon"
+
+
+def _parse_hhmm_duration(text: str) -> int:
+    match = TIME_AMOUNT_PATTERN.search(text)
+    if match is None:
+        return 0
+    return int(match.group(1)) * 60 + int(match.group(2))
+
+
+def _parse_won_amount(text: str) -> int:
+    match = WON_AMOUNT_PATTERN.search(text)
+    if match is None:
+        return 0
+    return _safe_int(match.group(1))
+
+
+def _parse_incheon_fee_updated_at(items: list[dict[str, Any]]) -> datetime:
+    for item in items:
+        timestamp_text = str(item.get("datetime") or "").strip()
+        if len(timestamp_text) >= 12:
+            return to_utc(datetime.strptime(timestamp_text[:12], "%Y%m%d%H%M"))
+    return now_utc()
 
 
 def _xml_items(xml_text: str) -> list[dict[str, str]]:
@@ -233,11 +300,7 @@ def parse_kac_parking(
 
 def parse_incheon_parking(payload: str | dict[str, Any]) -> list[ParsedParkingObservation]:
     document = json.loads(payload) if isinstance(payload, str) else payload
-    items = document.get("response", {}).get("body", {}).get("items", [])
-    if isinstance(items, dict):
-        items = items.get("item", [])
-    if isinstance(items, dict):
-        items = [items]
+    items = _json_items(document)
 
     observations: list[ParsedParkingObservation] = []
     for item in items:
@@ -258,7 +321,7 @@ def parse_incheon_parking(payload: str | dict[str, Any]) -> list[ParsedParkingOb
                 lot_id=_slug_lot_id("icn", lot_name),
                 lot_name=lot_name,
                 terminal="T2" if "T2" in lot_name.upper() else "T1",
-                category="incheon",
+                category=_classify_incheon_lot_category(lot_name),
                 observed_at=observed_at,
                 occupied_spaces=_safe_int(item.get("parking")),
                 total_spaces=_safe_int(item.get("parkingarea")),
@@ -268,6 +331,94 @@ def parse_incheon_parking(payload: str | dict[str, Any]) -> list[ParsedParkingOb
             )
         )
     return observations
+
+
+def _build_incheon_fee_rule(
+    profile: dict[str, Any],
+    descriptions_by_id: dict[str, list[str]],
+    source_updated_at: datetime,
+    lot_prefix: str,
+    vehicle_size: str,
+    day_type: str,
+    raw_item: dict[str, Any],
+) -> ParsedFeeRule | None:
+    fee_descriptions = descriptions_by_id.get(str(profile["fee_id"]), [])
+    max_descriptions = descriptions_by_id.get(str(profile["max_id"]), [])
+    if not fee_descriptions:
+        return None
+
+    basic_description = next((description for description in fee_descriptions if description.startswith("최초")), "")
+    unit_description = next((description for description in fee_descriptions if "초과" in description), "")
+
+    if basic_description:
+        basic_minutes = _parse_hhmm_duration(basic_description)
+        basic_fee = _parse_won_amount(basic_description)
+        unit_minutes = _parse_hhmm_duration(unit_description) or basic_minutes
+        unit_fee = _parse_won_amount(unit_description)
+    else:
+        unit_minutes = _parse_hhmm_duration(unit_description)
+        unit_fee = _parse_won_amount(unit_description)
+        basic_minutes = unit_minutes
+        basic_fee = unit_fee
+
+    if basic_minutes <= 0 or basic_fee <= 0:
+        return None
+
+    return ParsedFeeRule(
+        airport_code="ICN",
+        airport_name="인천국제공항",
+        parking_lot_name=lot_prefix,
+        vehicle_size=vehicle_size,
+        day_type=day_type,
+        free_minutes=0,
+        basic_minutes=basic_minutes,
+        basic_fee=basic_fee,
+        unit_minutes=max(1, unit_minutes or basic_minutes),
+        unit_fee=unit_fee,
+        daily_max_fee=_parse_won_amount(max_descriptions[0]) if max_descriptions else 0,
+        source_updated_at=source_updated_at,
+        raw_item=raw_item,
+    )
+
+
+def parse_incheon_fee(payload: str | dict[str, Any]) -> list[ParsedFeeRule]:
+    document = json.loads(payload) if isinstance(payload, str) else payload
+    items = _json_items(document)
+    descriptions_by_id: dict[str, list[str]] = {}
+    raw_by_id: dict[str, list[dict[str, Any]]] = {}
+
+    for item in items:
+        char_id = str(item.get("charid") or "").strip()
+        description = str(item.get("chardesc") or "").strip()
+        if not char_id or not description:
+            continue
+        descriptions_by_id.setdefault(char_id, []).append(description)
+        raw_by_id.setdefault(char_id, []).append(item)
+
+    source_updated_at = _parse_incheon_fee_updated_at(items)
+    rules: list[ParsedFeeRule] = []
+    for profile in INCHEON_FEE_PROFILES:
+        raw_item = {
+            "fee_id": profile["fee_id"],
+            "max_id": profile["max_id"],
+            "fee_items": raw_by_id.get(str(profile["fee_id"]), []),
+            "max_items": raw_by_id.get(str(profile["max_id"]), []),
+        }
+        for lot_prefix in profile["lot_prefixes"]:
+            for vehicle_size in ("small", "large"):
+                for day_type in ("weekday", "holiday"):
+                    rule = _build_incheon_fee_rule(
+                        profile,
+                        descriptions_by_id,
+                        source_updated_at,
+                        lot_prefix,
+                        vehicle_size,
+                        day_type,
+                        raw_item,
+                    )
+                    if rule is not None:
+                        rules.append(rule)
+    return rules
 
 
 def _append_fee_rule(

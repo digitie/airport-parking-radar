@@ -36,6 +36,34 @@
 curl -X POST http://localhost:8000/admin/collect
 ```
 
+## 인천공항 주차장 정보가 수집되지 않을 때
+
+먼저 확인:
+
+1. `GET /admin/collector-status`
+2. `.env` 또는 `.env.odroid`의 `ENABLE_INCHEON_COLLECTION`
+3. `.env` 또는 `.env.odroid`의 `AIRPORT_CODES_CSV`
+4. 최근 `collection_runs`의 `enabled_sources`
+
+반복해서 확인해야 하는 원인:
+
+- `ENABLE_INCHEON_COLLECTION=false`이면 `15095047`을 호출하지 않는다.
+- `AIRPORT_CODES_CSV`에 `ICN`이 없으면 인천공항은 수집/표시 대상에서 빠진다.
+- `ENABLE_INCHEON_FEE_COLLECTION=false`이면 `15095053` 요금 규칙은 수집하지 않는다.
+- 한국공항공사 `15056803` 한도 초과 상태가 인천 전용 API 호출까지 막으면 안 된다.
+
+현재 기준:
+
+- `2026-05-09` 수동 확인에서 `15095047` 인천 주차 정보는 `resultCode=00`, `NORMAL SERVICE.`를 반환했다.
+- `2026-05-09` 수동 확인에서 `15095053` 인천 주차요금 정보는 `resultCode=00`을 반환했다.
+- 수집 로직은 한국공항공사 주차 API가 한도 초과 상태여도 인천 주차/요금 수집을 계속 시도하도록 분리되어 있다.
+
+주차장 이름 주의:
+
+- 인천 실시간 주차 응답은 `T1 단기주차장지하1층`처럼 층 정보가 붙을 수 있다.
+- 요금 규칙은 `T1 단기주차장`, `T2 장기주차장` 같은 접두어 기준으로 연결한다.
+- 따라서 화면에서 보이는 세부 주차장명이 요금 규칙명과 완전히 같지 않아도 정상일 수 있다.
+
 ## `snapshot_count=0`이라 수집 실패로 오해한 경우
 
 이 값은 실패를 뜻하지 않을 수 있다.
@@ -73,7 +101,7 @@ curl -X POST http://localhost:8000/admin/collect
 
 관련 문서:
 
-- [time-and-collector.md](</C:/Users/digit/OneDrive/문서/New project/docs/time-and-collector.md>)
+- [time-and-collector.md](</F:/dev/parking-radar/docs/time-and-collector.md>)
 
 ## 프론트 코드를 고쳤는데 화면이 예전인 경우
 
@@ -139,8 +167,9 @@ docker compose up -d frontend
 
 운영 범위 주의:
 
-- ODROID live 장애를 조사할 때는 WSL2 컨테이너와 프로세스를 건드리지 않는다.
-- WSL2는 로컬 개발/테스트 기준 환경일 뿐이며, 사용자가 명시하지 않으면 ODROID live 수집 장애의 원인 조사 범위에서 제외한다.
+- ODROID live 장애를 조사할 때는 사용자가 명시하지 않은 다른 WSL2 프로젝트의 컨테이너와 프로세스를 중지하거나 변경하지 않는다.
+- 다만 `parking-radar` 자체 검증은 WSL2를 기준으로 하며, 1차 WSL 테스트와 2차 WSL Docker 테스트를 거친 뒤 ODROID에 배포한다.
+- ODROID live 수집 장애의 직접 원인 조사는 ODROID의 실행 상태와 로그를 우선으로 본다.
 - ODROID live의 중복 호출 여부는 ODROID의 `docker ps`, `systemctl list-timers`, `systemctl list-unit-files`, `crontab`, `journalctl` 기준으로 확인한다.
 
 현재 운영 메모:
@@ -153,6 +182,7 @@ docker compose up -d frontend
 - 이 경우 화면의 제한 메시지는 프론트/백엔드 가공 오류가 아니라 원 API의 키 단위 제한 응답이다.
 - `2026-05-01` 확인 기준 ODROID에서 활성화된 수집 실행원은 `parking-radar_backend_1`뿐이다. `parking-collector.timer`는 `.disabled` 상태이고 사용자/root cron에서도 추가 수집기는 발견되지 않았다.
 - 임시로 ODROID의 다음 원 API 재시도를 `2026-05-06 00:00:00 KST` 이후로 미뤘고, `2026-05-05 06:00:00 KST`에 `parking-radar-restore-backoff.timer`가 backoff 값을 `3600`으로 되돌리도록 예약했다.
+- `15056803` 한도 초과 backoff는 한국공항공사 주차/요금 소스에 적용한다. 인천공항 전용 `15095047`, `15095053` 소스가 활성화되어 있으면 같은 수집 실행에서 계속 호출되어야 한다.
 
 판단 기준:
 

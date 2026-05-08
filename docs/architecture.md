@@ -7,7 +7,7 @@
 - FastAPI API 서버
 - SQLAlchemy 2 기반 비동기 데이터 접근
 - SQLite 저장
-- 수집, 분석, 요금 계산 API 제공
+- 수집, 분석, 요금 계산, 비행편 마커 API 제공
 
 ### 프론트엔드
 
@@ -27,6 +27,17 @@
 2. 원본 응답은 `raw_api_responses`에 저장한다.
 3. 파싱 결과는 `airports`, `parking_lots`, `parking_snapshots`에 반영한다.
 4. 분석 API는 `parking_snapshots`를 기반으로 계산한다.
+
+수집 소스는 기관별로 분리한다.
+
+- `kac_parking`: 한국공항공사 `15056803`
+- `kac_fee`: 한국공항공사 `15038474`
+- `incheon_parking`: 인천국제공항공사 `15095047`
+- `incheon_fee`: 인천국제공항공사 `15095053`
+
+한국공항공사 주차 API가 한도 초과 상태이면 한국공항공사 주차/요금 소스는 건너뛰지만, 인천공항 전용 소스가 활성화되어 있으면 같은 수집 실행에서 계속 호출한다.
+
+비행편 운항 정보는 주차장 스냅샷 수집 흐름과 분리한다. `/flights/status` 호출 시 공항 코드에 따라 한국공항공사 `15113771` ODCloud JSON API 또는 인천국제공항공사 `15112968` 도착/출발 엔드포인트를 조회하고, 응답은 짧게 캐시한 뒤 차트 마커용으로만 반환한다.
 
 ## 스케줄러
 
@@ -63,8 +74,8 @@
 
 관련 문서:
 
-- [time-and-collector.md](</C:/Users/digit/OneDrive/문서/New project/docs/time-and-collector.md>)
-- [current-state.md](</C:/Users/digit/OneDrive/문서/New project/docs/current-state.md>)
+- [time-and-collector.md](</F:/dev/parking-radar/docs/time-and-collector.md>)
+- [current-state.md](</F:/dev/parking-radar/docs/current-state.md>)
 
 ## 주요 백엔드 모듈
 
@@ -74,10 +85,14 @@
   - 수집 실행과 저장
 - `backend/app/services/parsers.py`
   - 원본 응답 파싱
+  - 인천 주차 응답의 층 포함 주차장명과 `datetm` 관측 시각 정규화
+  - 인천 요금 설명(`charid`, `chardesc`)을 단기/장기/예약 요금 규칙으로 변환
 - `backend/app/services/analytics.py`
   - 시계열, 요일 x 시간, 임계치 집계
 - `backend/app/services/fee_calculator.py`
   - 주차 요금 계산
+- `backend/app/services/flight_status.py`
+  - 한국공항공사 `15113771` / 인천공항공사 `15112968` 비행편 출도착 조회, 정규화, 캐시
 
 ## 분석 API
 
@@ -95,6 +110,8 @@
   - 10대 / 50대 임계치 진입 / 회복
 - `GET /parking/analytics/threshold-insights`
   - 요일별 대표 임계 진입 시각 / 날짜별 진입 히스토리
+- `GET /flights/status`
+  - 선택 공항의 당일 출도착 비행편 마커
 
 ## 프론트 화면 구조
 
@@ -102,6 +119,7 @@
 - 공항 / 세부 주차장 / 새로고침 / 수동 수집 제어 영역
 - 현재 주차 현황 표 또는 카드
 - 최근 7일 시계열 차트
+- 시계열 차트의 선택 공항 비행편 출도착 마커
 - 요일 x 시간 평균 잔여 주차면 히트맵
 - 요일별 시간대 상세 패턴 카드
 - 요일별 임계 달성 시간 표
@@ -119,6 +137,7 @@
    - `GET /parking/analytics/by-weekday-hour`
    - `GET /parking/analytics/threshold-insights`
    - `GET /parking/analytics/threshold-events`
+   - `GET /flights/status`
    - `GET /admin/collector-status`
 4. 세부 주차장 선택 시 같은 공항 코드에 `parking_lot_id`를 붙여 재호출
 

@@ -4,15 +4,15 @@
 
 ## 파일 설명
 
-- [remote-deploy.sh](</C:/Users/digit/OneDrive/문서/New project/deploy/odroid/remote-deploy.sh>)
+- [remote-deploy.sh](</F:/dev/parking-radar/deploy/odroid/remote-deploy.sh>)
   - 원격 서버에서 `docker compose build`와 `docker compose up -d`를 실행한다.
-- [bootstrap-docker.sh](</C:/Users/digit/OneDrive/문서/New project/deploy/odroid/bootstrap-docker.sh>)
+- [bootstrap-docker.sh](</F:/dev/parking-radar/deploy/odroid/bootstrap-docker.sh>)
   - Ubuntu 24.04 기준 Docker와 Compose plugin을 설치하는 1회성 스크립트다.
   - 실제 실행은 설치가 필요할 때만 한다.
 
 ## 로컬 설정 파일
 
-- 루트의 [.env.odroid](</C:/Users/digit/OneDrive/문서/New project/.env.odroid>)
+- 루트의 [.env.odroid](</F:/dev/parking-radar/.env.odroid>)
   - 배포 대상 IP, 사용자, 앱 디렉터리, 포트, 공공데이터 인증키를 저장한다.
   - 비밀번호는 저장하지 않는다.
   - 현재 ODROID 기준 API 공개 포트는 `18000`이다.
@@ -20,9 +20,9 @@
 
 ## 로컬 실행 스크립트
 
-- [scripts/deploy-odroid.ps1](</C:/Users/digit/OneDrive/문서/New project/scripts/deploy-odroid.ps1>)
+- [scripts/deploy-odroid.ps1](</F:/dev/parking-radar/scripts/deploy-odroid.ps1>)
   - 로컬 프로젝트를 압축해서 원격 서버로 전송하고 배포까지 실행한다.
-- [scripts/odroid-status.ps1](</C:/Users/digit/OneDrive/문서/New project/scripts/odroid-status.ps1>)
+- [scripts/odroid-status.ps1](</F:/dev/parking-radar/scripts/odroid-status.ps1>)
   - 배포 후 웹/API 상태와 최근 수집 상태를 요약해서 보여준다.
 
 ## 운영 호환성 메모
