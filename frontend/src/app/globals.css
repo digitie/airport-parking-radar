@@ -1139,6 +1139,7 @@ select {
 .hour-chip span,
 .hour-chip strong {
   display: block;
+  min-width: 0;
 }
 
 .hour-chip span {
@@ -1149,6 +1150,8 @@ select {
 .hour-chip strong {
   margin-top: 4px;
   font-size: 0.84rem;
+  line-height: 1.15;
+  overflow-wrap: anywhere;
 }
 
 .threshold-list {
@@ -1634,15 +1637,25 @@ select {
   }
 
   .hour-chip-grid {
-    display: flex;
-    gap: 8px;
-    overflow-x: auto;
-    overscroll-behavior-x: contain;
-    padding-bottom: 4px;
+    display: grid;
+    gap: 6px;
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+    overflow: visible;
+    padding-bottom: 0;
   }
 
   .hour-chip {
-    flex: 0 0 76px;
+    min-width: 0;
+    padding: 7px 4px;
+  }
+
+  .hour-chip span {
+    font-size: 0.68rem;
+  }
+
+  .hour-chip strong {
+    margin-top: 3px;
+    font-size: 0.72rem;
   }
 
   .weekday-detail-head {
@@ -1709,15 +1722,15 @@ select {
   }
 
   .hour-chip-grid {
-    gap: 6px;
+    gap: 5px;
   }
 
   .hour-chip {
-    padding: 8px 6px;
+    padding: 7px 3px;
   }
 
   .hour-chip strong {
-    font-size: 0.78rem;
+    font-size: 0.7rem;
   }
 }
 

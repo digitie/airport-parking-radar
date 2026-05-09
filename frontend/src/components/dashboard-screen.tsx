@@ -97,6 +97,10 @@ function formatHourLabel(hour: number): string {
   return `${String(hour).padStart(2, "0")}:00`;
 }
 
+function formatCompactHourLabel(hour: number): string {
+  return `${hour}시`;
+}
+
 function formatThresholdLabel(threshold: number): string {
   return `${formatNumber(threshold)}대 미만`;
 }
@@ -613,7 +617,7 @@ export function DashboardScreen({
                             className="hour-chip"
                             style={buildAvailabilityHeatStyle(bucket.average_available_spaces, maxHeatValue)}
                           >
-                            <span>{formatHourLabel(bucket.hour)}</span>
+                            <span>{isMobile ? formatCompactHourLabel(bucket.hour) : formatHourLabel(bucket.hour)}</span>
                             <strong>
                               {bucket.average_available_spaces === null
                                 ? "-"
