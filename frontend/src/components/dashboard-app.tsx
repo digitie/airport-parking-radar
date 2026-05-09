@@ -155,6 +155,12 @@ export function DashboardApp({
       if (showLoading) {
         setLoading(true);
         setFlightStatus(null);
+        setThresholdEvents([]);
+        setThresholdInsights(null);
+        setWeekdayHourlyPatterns([]);
+        setHolidaySummary(null);
+        setHolidayPatterns(null);
+        setTimeSeries(null);
       }
       setError(null);
 
@@ -164,44 +170,61 @@ export function DashboardApp({
           flightStatusTimeoutMs,
           () => buildFlightStatusError(airportCode, new Error("비행편 정보 응답이 지연되어 주차 현황을 먼저 표시합니다."))
         );
-        const holidaySummaryRequest = api.getHolidaySummary().catch(buildHolidaySummaryError);
-        const holidayPatternsRequest = api
-          .getHolidayPatterns(airportCode, { parkingLotId })
-          .catch((caughtError) => buildHolidayPatternError(airportCode, parkingLotId, caughtError));
-        const [current, thresholds, thresholdDetail, weekdayHourly, holidays, holidayPatternDetail, timeseries, status] = await Promise.all([
+        const [current, status] = await Promise.all([
           api.getCurrent(airportCode),
-          api.getThresholdEvents(airportCode, parkingLotId),
-          api.getThresholdInsights(airportCode, { parkingLotId }),
-          api.getByWeekdayHour(airportCode, parkingLotId),
-          holidaySummaryRequest,
-          holidayPatternsRequest,
-          api.getTimeSeries(airportCode, { parkingLotId }),
           api.getCollectorStatus(),
         ]);
         if (!mountedRef.current || loadRequestIdRef.current !== requestId) {
           return;
         }
         setCurrentItems(current.items);
-        setThresholdEvents(thresholds);
-        setThresholdInsights(thresholdDetail);
-        setWeekdayHourlyPatterns(weekdayHourly);
-        setHolidaySummary(holidays);
-        setHolidayPatterns(holidayPatternDetail);
-        setTimeSeries(timeseries);
         setCollectorStatus(status);
+        if (showLoading) {
+          setLoading(false);
+        }
+
         void flightStatusRequest.then((flights) => {
           if (mountedRef.current && loadRequestIdRef.current === requestId) {
             setFlightStatus(flights);
           }
         });
+
+        const holidaySummaryRequest = api.getHolidaySummary().catch(buildHolidaySummaryError);
+        const holidayPatternsRequest = api
+          .getHolidayPatterns(airportCode, { parkingLotId })
+          .catch((caughtError) => buildHolidayPatternError(airportCode, parkingLotId, caughtError));
+        void Promise.all([
+          api.getThresholdEvents(airportCode, parkingLotId),
+          api.getThresholdInsights(airportCode, { parkingLotId }),
+          api.getByWeekdayHour(airportCode, parkingLotId),
+          holidaySummaryRequest,
+          holidayPatternsRequest,
+          api.getTimeSeries(airportCode, { parkingLotId }),
+        ])
+          .then(([thresholds, thresholdDetail, weekdayHourly, holidays, holidayPatternDetail, timeseries]) => {
+            if (!mountedRef.current || loadRequestIdRef.current !== requestId) {
+              return;
+            }
+            setThresholdEvents(thresholds);
+            setThresholdInsights(thresholdDetail);
+            setWeekdayHourlyPatterns(weekdayHourly);
+            setHolidaySummary(holidays);
+            setHolidayPatterns(holidayPatternDetail);
+            setTimeSeries(timeseries);
+          })
+          .catch((caughtError) => {
+            if (!mountedRef.current || loadRequestIdRef.current !== requestId) {
+              return;
+            }
+            setError(caughtError instanceof Error ? caughtError.message : "분석 데이터를 불러오지 못했습니다.");
+          });
       } catch (caughtError) {
         if (!mountedRef.current || loadRequestIdRef.current !== requestId) {
           return;
         }
         setActionMessageIsError(true);
         setError(caughtError instanceof Error ? caughtError.message : "대시보드 데이터를 불러오지 못했습니다.");
-      } finally {
-        if (mountedRef.current && loadRequestIdRef.current === requestId && showLoading) {
+        if (showLoading) {
           setLoading(false);
         }
       }

@@ -275,6 +275,16 @@ describe("DashboardApp", () => {
     expect(screen.getAllByText("지금 주차 여유").length).toBeGreaterThan(0);
   });
 
+  test("shows current parking data before delayed analytics finish", async () => {
+    apiClient.getTimeSeries.mockImplementationOnce(() => new Promise<ParkingTimeSeriesResponse>(() => undefined));
+
+    render(<DashboardApp apiBaseUrl="http://localhost:8000" />);
+
+    await screen.findByText("100/200대");
+    expect(screen.queryByText("데이터를 불러오는 중입니다.")).not.toBeInTheDocument();
+    expect(apiClient.getTimeSeries).toHaveBeenCalled();
+  });
+
   test("refreshes dashboard data automatically without a page reload", async () => {
     apiClient.getCurrent.mockResolvedValueOnce(currentPayload).mockResolvedValue(refreshedCurrentPayload);
 

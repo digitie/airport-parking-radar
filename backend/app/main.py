@@ -191,20 +191,35 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         airport_code: str | None = Query(default=None),
         session: AsyncSession = Depends(get_db),
     ) -> ParkingCurrentResponse:
+        airport_id: int | None = None
+        if airport_code:
+            airport_id = await session.scalar(select(Airport.id).where(Airport.code == airport_code.upper()))
+            if airport_id is None:
+                return ParkingCurrentResponse(generated_at=now_utc(), items=[])
+
+        ranked_snapshots = select(
+            ParkingSnapshot.id.label("snapshot_id"),
+            func.row_number()
+            .over(
+                partition_by=ParkingSnapshot.parking_lot_id,
+                order_by=(ParkingSnapshot.observed_at.desc(), ParkingSnapshot.id.desc()),
+            )
+            .label("snapshot_rank"),
+        )
+        if airport_id is not None:
+            ranked_snapshots = ranked_snapshots.where(ParkingSnapshot.airport_id == airport_id)
+
+        latest_snapshots = ranked_snapshots.subquery()
         query = (
             select(ParkingSnapshot, ParkingLot, Airport)
+            .join(latest_snapshots, latest_snapshots.c.snapshot_id == ParkingSnapshot.id)
             .join(ParkingLot, ParkingLot.id == ParkingSnapshot.parking_lot_id)
             .join(Airport, Airport.id == ParkingSnapshot.airport_id)
-            .order_by(ParkingLot.id, ParkingSnapshot.observed_at.desc())
+            .where(latest_snapshots.c.snapshot_rank == 1)
+            .order_by(ParkingLot.id)
         )
-        if airport_code:
-            query = query.where(Airport.code == airport_code.upper())
 
         rows = (await session.execute(query)).all()
-        latest_by_lot: dict[int, tuple[ParkingSnapshot, ParkingLot, Airport]] = {}
-        for snapshot, lot, airport in rows:
-            latest_by_lot.setdefault(lot.id, (snapshot, lot, airport))
-
         items = [
             ParkingStatus(
                 airport_code=airport.code,
@@ -222,7 +237,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 congestion_ratio=snapshot.congestion_ratio,
                 status_level=classify_status_level(snapshot.available_spaces, snapshot.total_spaces),
             )
-            for snapshot, lot, airport in latest_by_lot.values()
+            for snapshot, lot, airport in rows
         ]
         items.sort(key=lambda item: (item.airport_code, item.available_spaces))
         return ParkingCurrentResponse(generated_at=now_utc(), items=items)

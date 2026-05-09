@@ -36,6 +36,18 @@ def create_engine_and_session_factory(database_url: str) -> tuple[AsyncEngine, a
 async def init_database(engine: AsyncEngine) -> None:
     async with engine.begin() as connection:
         await connection.run_sync(Base.metadata.create_all)
+        await connection.execute(
+            text(
+                "CREATE INDEX IF NOT EXISTS ix_parking_snapshots_airport_observed "
+                "ON parking_snapshots (airport_id, observed_at)"
+            )
+        )
+        await connection.execute(
+            text(
+                "CREATE INDEX IF NOT EXISTS ix_parking_snapshots_lot_observed "
+                "ON parking_snapshots (parking_lot_id, observed_at)"
+            )
+        )
 
 
 async def session_scope(

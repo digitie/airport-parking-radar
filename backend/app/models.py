@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import JSON, Boolean, DateTime, Float, ForeignKey, Integer, String, Text, UniqueConstraint
+from sqlalchemy import JSON, Boolean, DateTime, Float, ForeignKey, Index, Integer, String, Text, UniqueConstraint
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 
@@ -74,6 +74,8 @@ class ParkingSnapshot(Base):
     __tablename__ = "parking_snapshots"
     __table_args__ = (
         UniqueConstraint("parking_lot_id", "observed_at", "source", name="uq_parking_snapshot"),
+        Index("ix_parking_snapshots_airport_observed", "airport_id", "observed_at"),
+        Index("ix_parking_snapshots_lot_observed", "parking_lot_id", "observed_at"),
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
@@ -118,4 +120,3 @@ class ParkingFeeRule(Base):
     daily_max_fee: Mapped[int] = mapped_column(Integer)
     source_updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     raw_item_json: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
-
