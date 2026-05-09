@@ -324,6 +324,7 @@ describe("DashboardScreen", () => {
 
     expect(screen.getByTestId("mobile-lot-grid")).toBeInTheDocument();
     expect(screen.queryByTestId("desktop-lot-table")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "즉시 수집 실행" })).toBeInTheDocument();
     expect(screen.getAllByText("국내선 제1주차장").length).toBeGreaterThan(0);
   });
 

@@ -33,7 +33,6 @@ class Settings(BaseSettings):
     cors_origins_csv: str = "http://localhost:3000"
     trusted_hosts_csv: str = "localhost,127.0.0.1,testserver"
     enable_api_docs: bool = True
-    admin_api_token: str | None = None
     api_prefix: str = ""
     use_sample_client_when_no_key: bool = True
 

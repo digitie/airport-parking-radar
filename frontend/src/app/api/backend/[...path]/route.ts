@@ -8,7 +8,7 @@ type RouteContext = {
 };
 
 const BACKEND_INTERNAL_URL = (process.env.BACKEND_INTERNAL_URL ?? "http://localhost:8000").replace(/\/$/, "");
-const FORWARDED_REQUEST_HEADERS = new Set(["accept", "authorization", "content-type", "x-admin-token"]);
+const FORWARDED_REQUEST_HEADERS = new Set(["accept", "content-type"]);
 const FORWARDED_RESPONSE_HEADERS = new Set([
   "cache-control",
   "content-type",

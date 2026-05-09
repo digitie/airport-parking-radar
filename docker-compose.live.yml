@@ -21,7 +21,6 @@ services:
       CORS_ORIGINS_CSV: "${CORS_ORIGINS_CSV:-http://localhost:3000}"
       TRUSTED_HOSTS_CSV: "${TRUSTED_HOSTS_CSV:-localhost,127.0.0.1,testserver,backend}"
       ENABLE_API_DOCS: "${ENABLE_API_DOCS:-false}"
-      ADMIN_API_TOKEN: "${ADMIN_API_TOKEN:-}"
       APP_TIMEZONE: "${APP_TIMEZONE:-Asia/Seoul}"
       DATA_GO_KR_SERVICE_KEY: "${DATA_GO_KR_SERVICE_KEY:-}"
     volumes:

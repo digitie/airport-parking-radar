@@ -2,14 +2,13 @@ from __future__ import annotations
 
 import asyncio
 import logging
-import secrets
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from contextlib import suppress
 from datetime import date, datetime, time, timedelta
 from zoneinfo import ZoneInfo
 
-from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request
+from fastapi import Depends, FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 from sqlalchemy import func, select
@@ -120,7 +119,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         allow_origins=resolved_settings.cors_origins,
         allow_credentials=False,
         allow_methods=["GET", "POST", "OPTIONS"],
-        allow_headers=["Authorization", "Content-Type", "X-Admin-Token"],
+        allow_headers=["Content-Type"],
     )
 
     @app.middleware("http")
@@ -152,23 +151,6 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     def get_holiday_service(request: Request) -> HolidayService:
         return request.app.state.holiday_service
-
-    def require_admin_token(
-        authorization: str | None = Header(default=None),
-        x_admin_token: str | None = Header(default=None),
-    ) -> None:
-        expected_token = resolved_settings.admin_api_token
-        if not expected_token:
-            return
-
-        provided_token = x_admin_token
-        if not provided_token and authorization:
-            scheme, _, token = authorization.partition(" ")
-            if scheme.lower() == "bearer" and token:
-                provided_token = token
-
-        if not provided_token or not secrets.compare_digest(provided_token, expected_token):
-            raise HTTPException(status_code=401, detail="Admin token is required.")
 
     @app.get("/health", response_model=HealthResponse)
     async def health(session: AsyncSession = Depends(get_db)) -> HealthResponse:
@@ -515,7 +497,6 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     @app.post("/admin/collect", response_model=CollectionSummary)
     async def admin_collect(
-        _: None = Depends(require_admin_token),
         session: AsyncSession = Depends(get_db),
         service: CollectionService = Depends(get_collection_service),
     ) -> CollectionSummary:

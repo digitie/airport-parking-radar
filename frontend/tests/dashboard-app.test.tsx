@@ -186,6 +186,7 @@ vi.mock("@/components/fee-calculator", () => ({
 
 describe("DashboardApp", () => {
   beforeEach(() => {
+    Object.defineProperty(window, "innerWidth", { configurable: true, value: 1024 });
     localStorage.clear();
     vi.clearAllMocks();
     apiClient.getCollectorStatus.mockResolvedValue(buildCollectorStatus());
@@ -234,6 +235,34 @@ describe("DashboardApp", () => {
     expect(
       await screen.findByText("마지막 업데이트 후 20분이 지나지 않았습니다. 04.26 09:30 KST 이후 다시 시도해 주세요.")
     ).toBeInTheDocument();
+  });
+
+  test("does not ask for a token while loading read-only dashboard data", async () => {
+    const promptSpy = vi.spyOn(window, "prompt").mockReturnValue(null);
+
+    render(<DashboardApp apiBaseUrl="http://localhost:8000" />);
+
+    await screen.findByTestId("history-chart");
+    expect(promptSpy).not.toHaveBeenCalled();
+
+    promptSpy.mockRestore();
+  });
+
+  test("runs manual collection without asking for a token", async () => {
+    const user = userEvent.setup();
+    const promptSpy = vi.spyOn(window, "prompt").mockReturnValue("unused-token");
+
+    render(<DashboardApp apiBaseUrl="http://localhost:8000" />);
+
+    await screen.findByTestId("history-chart");
+    await user.click(screen.getByTestId("manual-collect-button"));
+
+    expect(promptSpy).not.toHaveBeenCalled();
+    await waitFor(() => {
+      expect(apiClient.runCollector).toHaveBeenCalledWith();
+    });
+
+    promptSpy.mockRestore();
   });
 
   test("refreshes dashboard data automatically without a page reload", async () => {

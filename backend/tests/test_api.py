@@ -262,17 +262,6 @@ def test_admin_collect_succeeds_when_cooldown_is_disabled(tmp_path: Path) -> Non
         assert payload["raw_response_count"] >= 1
 
 
-def test_admin_collect_requires_token_when_configured(tmp_path: Path) -> None:
-    with build_client(tmp_path, admin_api_token="secret-token", manual_collect_min_interval_seconds=0) as client:
-        missing = client.post("/admin/collect")
-        wrong = client.post("/admin/collect", headers={"X-Admin-Token": "wrong-token"})
-        accepted = client.post("/admin/collect", headers={"X-Admin-Token": "secret-token"})
-
-    assert missing.status_code == 401
-    assert wrong.status_code == 401
-    assert accepted.status_code == 200
-
-
 def test_admin_collector_status(client) -> None:
     response = client.get("/admin/collector-status")
     assert response.status_code == 200

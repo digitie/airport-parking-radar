@@ -113,10 +113,9 @@ export function buildApiClient(apiBaseUrl?: string) {
     getHolidaySummary(): Promise<HolidaySummaryResponse> {
       return getJson<HolidaySummaryResponse>(`${baseUrl}/holidays/summary`);
     },
-    runCollector(adminToken?: string): Promise<CollectionSummary> {
+    runCollector(): Promise<CollectionSummary> {
       return getJson<CollectionSummary>(`${baseUrl}/admin/collect`, {
         method: "POST",
-        headers: adminToken ? { "X-Admin-Token": adminToken } : undefined,
       });
     },
     getByHour(airportCode: string, parkingLotId: number | null = null): Promise<HourlyBucket[]> {

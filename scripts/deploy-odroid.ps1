@@ -83,6 +83,8 @@ try {
 
   $tarArgs = @(
     "--exclude=.git",
+    "--exclude=.env",
+    "--exclude=.env.*",
     "--exclude=.next",
     "--exclude=node_modules",
     "--exclude=coverage",

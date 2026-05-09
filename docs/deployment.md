@@ -75,6 +75,13 @@ DATA_GO_KR_SERVICE_KEY=...
 - 상태 확인 스크립트: [scripts/odroid-status.ps1](</F:/dev/parking-radar/scripts/odroid-status.ps1>)
 - 원격 실행 스크립트: [deploy/odroid/remote-deploy.sh](</F:/dev/parking-radar/deploy/odroid/remote-deploy.sh>)
 
+비밀값 관리:
+
+- 공공데이터 인증키 `DATA_GO_KR_SERVICE_KEY`는 ODROID의 `/home/digitie/apps/parking-radar/.env.odroid`에 저장한다.
+- 배포 패키지는 `.env`, `.env.*`를 제외하므로 로컬의 `.env.odroid`가 서버의 운영 키를 덮어쓰지 않는다.
+- 로컬 `.env.odroid`는 접속 대상, 포트, 배포 경로 같은 배포 연결 정보 확인용으로만 사용하고, 운영 비밀값의 기준은 서버 파일이다.
+- 관리자 토큰 기능은 사용하지 않는다. 브라우저에는 공공데이터 API 키를 요구하거나 노출하지 않는다.
+
 기본 저장 정보:
 
 - `ODROID_HOST=192.168.1.13`
@@ -87,7 +94,6 @@ DATA_GO_KR_SERVICE_KEY=...
 - `CORS_ORIGINS_CSV=http://192.168.1.13:3000,https://pr.digitie.mywire.org,http://localhost:3000`
 - `TRUSTED_HOSTS_CSV=192.168.1.13,pr.digitie.mywire.org,localhost,127.0.0.1,testserver,backend`
 - `ENABLE_API_DOCS=false`
-- `ADMIN_API_TOKEN=` 운영에서는 값 채움
 
 포트 메모:
 
@@ -126,6 +132,7 @@ Windows 로컬 PowerShell 테스트만으로 ODROID에 배포하지 않는다. P
 - 원격 서버는 `docker compose` 플러그인만 있는 경우도 있고, `docker-compose` 바이너리만 있는 경우도 있다.
 - 배포 스크립트는 두 방식을 모두 지원해야 한다.
 - `.env.odroid`는 원격 셸에서 먼저 로드하므로 `--env-file` 지원 여부에 배포가 의존하지 않도록 유지한다.
+- 배포 아카이브에는 `.env`, `.env.*`를 포함하지 않는다. 서버에 저장된 `.env.odroid`가 운영 환경의 단일 기준이다.
 - `.env.odroid`는 원격 bash가 `source`로 읽으므로 UTF-8 without BOM, LF 줄바꿈을 유지한다. PowerShell `Set-Content -Encoding utf8`은 환경에 따라 BOM을 붙일 수 있어 원격에서 `$'\ufeffKEY=value\r': command not found` 오류를 만들 수 있다.
 - Compose 구현에 따라 `sudo` 실행 시 셸 환경 변수가 사라질 수 있으므로, 원격 스크립트는 `.env.odroid`를 `.env`로도 연결해 Compose가 직접 읽게 한다.
 - `docker-compose 1.29` 계열에서는 컨테이너 재생성 중 `ContainerConfig` 오류가 날 수 있다.
@@ -147,8 +154,9 @@ Windows 로컬 PowerShell 테스트만으로 ODROID에 배포하지 않는다. P
 - 운영에서는 `ENABLE_API_DOCS=false`로 `/docs`, `/redoc`, `/openapi.json`을 공개하지 않는다.
 - `TRUSTED_HOSTS_CSV`에는 운영 도메인과 필요한 내부 호스트만 넣는다.
 - `CORS_ORIGINS_CSV`에는 실제 웹 origin만 넣고 와일드카드를 쓰지 않는다.
-- `POST /admin/collect`는 `ADMIN_API_TOKEN`이 설정되어 있으면 `X-Admin-Token` 또는 `Authorization: Bearer` 토큰 없이는 실행되지 않는다.
-- 웹 UI의 `지금 수집` 버튼은 토큰이 필요할 때 브라우저에서 한 번 입력받아 로컬 저장소에 보관한다.
+- `POST /admin/collect`는 관리자 토큰 없이 실행된다.
+- 웹 UI의 `지금 수집` 버튼은 토큰 입력 없이 동작한다.
+- 브라우저에는 공공데이터 API 키를 요구하거나 노출하지 않는다.
 - 백엔드는 `X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy`, `Permissions-Policy`, HTTPS 접근 시 `Strict-Transport-Security`를 응답 헤더로 내려준다.
 
 ## 빠른 라이브 검증용 스택

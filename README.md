@@ -113,7 +113,7 @@ docker compose up -d
 - `CORS_ORIGINS_CSV`는 내부 웹 주소와 `https://pr.digitie.mywire.org`만 허용한다.
 - `TRUSTED_HOSTS_CSV`는 운영 도메인/내부 호스트만 허용한다.
 - `ENABLE_API_DOCS=false`로 공개 API 문서를 닫는다.
-- `ADMIN_API_TOKEN`이 있으면 `지금 수집` 실행 시 관리 토큰이 필요하다.
+- `지금 수집`은 관리 토큰 없이 동작하며, 브라우저에 공공데이터 API 키를 요구하거나 노출하지 않는다.
 
 ## 실데이터 수집
 
@@ -162,12 +162,6 @@ DATA_GO_KR_SERVICE_KEY=...
 
 ```bash
 curl -X POST http://localhost:8000/admin/collect
-```
-
-운영에서 `ADMIN_API_TOKEN`이 설정되어 있으면 다음처럼 토큰을 함께 보낸다.
-
-```bash
-curl -X POST -H "X-Admin-Token: <token>" http://localhost:8000/admin/collect
 ```
 
 상태 확인:

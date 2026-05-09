@@ -266,7 +266,8 @@ row-level `collected_at`은 백엔드에 남아 있지만, 메인 UI에서는 �
 - 운영 백엔드는 `TRUSTED_HOSTS_CSV`로 허용 Host를 제한한다.
 - 운영 CORS는 `http://192.168.1.13:3000`, `https://pr.digitie.mywire.org`, `http://localhost:3000`만 허용한다.
 - 운영에서는 `ENABLE_API_DOCS=false`로 API 문서를 공개하지 않는다.
-- `ADMIN_API_TOKEN`이 설정되어 있으면 `POST /admin/collect`는 토큰 없이는 실행되지 않는다.
+- `POST /admin/collect`는 관리자 토큰 없이 실행된다.
+- 일반 조회와 자동 갱신은 서버에 저장된 `DATA_GO_KR_SERVICE_KEY`로 동작하며, 브라우저에 공공데이터 API 키를 요구하거나 노출하지 않는다.
 - `GET /admin/collector-status`는 화면 갱신과 운영 상태 확인을 위해 공개 조회로 둔다.
 
 ## 9. 배포 자산
@@ -309,8 +310,8 @@ row-level `collected_at`은 백엔드에 남아 있지만, 메인 UI에서는 �
 
 마지막 확인 기준:
 
-- 백엔드: `54 passed`
-- 프론트: `28 passed`
+- 백엔드: `53 passed`
+- 프론트: `30 passed`
 
 관련 문서:
 - [testing.md](</F:/dev/parking-radar/docs/testing.md>)

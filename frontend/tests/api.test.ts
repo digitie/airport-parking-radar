@@ -187,7 +187,7 @@ describe("api client", () => {
     const client = buildApiClient("http://localhost:8000");
 
     await client.getCollectorStatus();
-    await client.runCollector("admin-token");
+    await client.runCollector();
 
     expect(fetchMock).toHaveBeenNthCalledWith(
       1,
@@ -200,7 +200,6 @@ describe("api client", () => {
       expect.objectContaining({
         method: "POST",
         cache: "no-store",
-        headers: expect.objectContaining({ "X-Admin-Token": "admin-token" }),
       })
     );
   });

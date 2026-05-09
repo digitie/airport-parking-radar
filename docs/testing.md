@@ -220,7 +220,7 @@ in-app browser 또는 브라우저에서 다음을 확인한다.
   - `client_mode=live`
   - `scheduler_enabled=true`
   - `upstream_rate_limited=false`
-- `POST /admin/collect`는 운영 토큰 없이 `401`을 반환하는지 확인
+- `POST /admin/collect`가 토큰 없이 동작하거나, 수동 수집 쿨다운이면 `409`를 반환하는지 확인
 - 웹 UI에서
   - 현재 시각 표시가 KST 기준인지 확인
   - `지금 수집` 버튼이 노출되는지 확인
