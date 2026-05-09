@@ -136,7 +136,7 @@ export function buildApiClient(apiBaseUrl?: string) {
       airportCode: string,
       options: { parkingLotId?: number | null; days?: number; intervalMinutes?: number; futureHours?: number } = {}
     ): Promise<ParkingTimeSeriesResponse> {
-      const { parkingLotId = null, days = 7, intervalMinutes = 30, futureHours = 4 } = options;
+      const { parkingLotId = null, days = 7, intervalMinutes = 30, futureHours = 0 } = options;
       return getJson<ParkingTimeSeriesResponse>(
         buildAnalyticsUrl(baseUrl, "/parking/analytics/timeseries", airportCode, {
           parkingLotId,

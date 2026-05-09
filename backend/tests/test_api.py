@@ -151,8 +151,8 @@ def test_current_and_analytics(client) -> None:
     assert_is_utc_iso(timeseries_payload["generated_at"])
     assert timeseries_payload["days"] == 7
     assert timeseries_payload["interval_minutes"] == 30
-    assert timeseries_payload["future_hours"] == 4
-    assert len(timeseries_payload["items"]) == 344
+    assert timeseries_payload["future_hours"] == 0
+    assert len(timeseries_payload["items"]) == 336
     assert max(point["lot_observations"] for point in timeseries_payload["items"]) >= 1
     assert_is_utc_iso(timeseries_payload["items"][0]["bucket_at"])
     latest_observed_point = next(
@@ -161,7 +161,9 @@ def test_current_and_analytics(client) -> None:
     assert latest_observed_point["available_spaces"] == sum(
         item["available_spaces"] for item in current_payload["items"]
     )
-    assert timeseries_payload["items"][-1]["lot_observations"] == 0
+    assert timeseries_payload["items"][-1]["available_spaces"] == sum(
+        item["available_spaces"] for item in current_payload["items"]
+    )
 
     holiday_summary_payload = holiday_summary.json()
     assert holiday_summary_payload["status"] == "sample"

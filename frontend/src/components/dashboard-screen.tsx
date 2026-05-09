@@ -2,6 +2,7 @@
 
 import type { CSSProperties } from "react";
 
+import { DailyFlightOverlayChart } from "@/components/daily-flight-overlay-chart";
 import { HistoryChart } from "@/components/history-chart";
 import { formatDateTimeWithZone, formatMinutesOfDay, formatNumber } from "@/lib/format";
 import type {
@@ -462,6 +463,12 @@ export function DashboardScreen({
 
       <section className="analytics-grid">
         <HistoryChart
+          holidays={holidaySummary?.items ?? []}
+          series={timeSeries}
+          scopeLabel={scopeLabel}
+        />
+
+        <DailyFlightOverlayChart
           flightStatus={flightStatus}
           holidays={holidaySummary?.items ?? []}
           series={timeSeries}

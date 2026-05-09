@@ -681,6 +681,171 @@ select {
   visibility: hidden;
 }
 
+.daily-overlay-panel {
+  grid-column: 1 / -1;
+}
+
+.daily-overlay-controls {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: 1fr auto;
+  margin-bottom: 14px;
+}
+
+.daily-date-toggle-group,
+.flight-toggle-group,
+.daily-overlay-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.daily-date-toggle {
+  min-height: 44px;
+  padding: 8px 11px;
+  border-radius: 12px;
+  border: 1px solid rgba(31, 37, 48, 0.14);
+  background: var(--surface-strong);
+  color: var(--ink);
+  cursor: pointer;
+  text-align: left;
+}
+
+.daily-date-toggle strong,
+.daily-date-toggle small {
+  display: block;
+}
+
+.daily-date-toggle small {
+  margin-top: 2px;
+  color: #1d4ed8;
+  font-size: 0.72rem;
+}
+
+.daily-date-toggle.holiday {
+  border-color: rgba(37, 99, 235, 0.24);
+}
+
+.daily-date-toggle.is-off {
+  opacity: 0.42;
+  text-decoration: line-through;
+}
+
+.toggle-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 40px;
+  padding: 7px 10px;
+  border: 1px solid rgba(31, 37, 48, 0.12);
+  border-radius: 12px;
+  background: var(--surface-strong);
+  color: var(--ink);
+  font-size: 0.84rem;
+  font-weight: 650;
+}
+
+.daily-overlay-chart-shell {
+  overflow-x: auto;
+  padding-top: 10px;
+}
+
+.daily-overlay-chart-stage {
+  position: relative;
+  min-width: 920px;
+}
+
+.daily-overlay-chart {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.daily-axis-label {
+  fill: var(--muted);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.daily-line {
+  stroke-width: 2.6;
+  stroke-linecap: butt;
+  stroke-linejoin: miter;
+}
+
+.daily-line-0 {
+  stroke: #0c8b7d;
+}
+
+.daily-line-1 {
+  stroke: #2563eb;
+}
+
+.daily-line-2 {
+  stroke: #db2777;
+}
+
+.daily-line-3 {
+  stroke: #8c6116;
+}
+
+.daily-line-4 {
+  stroke: #7c3aed;
+}
+
+.daily-line-5 {
+  stroke: #c2410c;
+}
+
+.daily-line-6 {
+  stroke: #334155;
+}
+
+.daily-line-holiday .daily-line {
+  stroke-dasharray: 7 6;
+  stroke-width: 3.2;
+}
+
+.daily-holiday-marker {
+  fill: white;
+  stroke: #1d4ed8;
+  stroke-width: 2;
+}
+
+.daily-flight-marker {
+  cursor: pointer;
+}
+
+.daily-flight-marker.active .flight-marker-line {
+  stroke-width: 3;
+  stroke-dasharray: 0;
+}
+
+.daily-flight-marker.active .flight-marker-dot {
+  fill: white;
+  stroke-width: 3;
+}
+
+.daily-flight-marker-departure .flight-marker-line,
+.daily-flight-marker-departure .flight-marker-dot {
+  stroke: #2563eb;
+}
+
+.daily-flight-marker-arrival .flight-marker-line,
+.daily-flight-marker-arrival .flight-marker-dot {
+  stroke: #db2777;
+}
+
+.daily-flight-highlight {
+  top: 8px;
+}
+
+.daily-overlay-legend {
+  margin-top: 12px;
+  color: var(--muted);
+  font-size: 0.84rem;
+}
+
 .panel-head {
   display: flex;
   align-items: center;

@@ -55,7 +55,7 @@
 - 호출 URL: [https://api.odcloud.kr/api/FlightStatusListDTL/v1/getFlightStatusListDetail](https://api.odcloud.kr/api/FlightStatusListDTL/v1/getFlightStatusListDetail)
 - 용도:
   - 선택 공항 기준 당일 출도착 비행편 조회
-  - 시계열 차트 X축에 비행편 시간 마커 표시
+  - 하루 흐름 오버레이 차트의 0~24시 X축에 비행편 시간 마커 표시
   - 시간, 편명, 출발공항, 도착공항 표시
 - 현재 호출 방식:
   - `cond[FLIGHT_DATE::EQ]=YYYYMMDD`
@@ -83,7 +83,7 @@
   - `getPassengerDeparturesDeOdp`
 - 용도:
   - 인천공항(`ICN`) 선택 시 당일 출도착 비행편 조회
-  - 시계열 차트 X축에 시간, 편명, 출발공항, 도착공항 마커 표시
+  - 하루 흐름 오버레이 차트의 0~24시 X축에 시간, 편명, 출발공항, 도착공항 마커 표시
 - 현재 파싱 필드:
   - `flightId`
   - `airline`

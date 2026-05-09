@@ -2,7 +2,7 @@ import { fireEvent, render, screen, within } from "@testing-library/react";
 
 import { HistoryChart } from "@/components/history-chart";
 import { formatDateTimeWithZone } from "@/lib/format";
-import type { FlightStatusResponse, HolidayItemSummary, ParkingTimeSeriesResponse } from "@/lib/types";
+import type { HolidayItemSummary, ParkingTimeSeriesResponse } from "@/lib/types";
 
 function buildSeries(): ParkingTimeSeriesResponse {
   const start = new Date("2026-04-23T15:00:00.000Z").getTime();
@@ -23,45 +23,6 @@ function buildSeries(): ParkingTimeSeriesResponse {
   };
 }
 
-function buildFlightStatus(): FlightStatusResponse {
-  return {
-    generated_at: "2026-04-24T03:00:00.000Z",
-    airport_code: "CJU",
-    local_date: "2026-04-24",
-    source: "sample_flight_status",
-    status: "sample",
-    error_message: null,
-    items: [
-      {
-        airport_code: "CJU",
-        direction: "departure",
-        flight_number: "KE1101",
-        airline: "대한항공",
-        scheduled_at: "2026-04-24T00:30:00.000Z",
-        estimated_at: "2026-04-24T00:40:00.000Z",
-        marker_at: "2026-04-24T00:40:00.000Z",
-        origin_airport: "제주",
-        destination_airport: "김포",
-        status: "출발",
-        line_type: "국내",
-      },
-      {
-        airport_code: "CJU",
-        direction: "arrival",
-        flight_number: "OZ8922",
-        airline: "아시아나항공",
-        scheduled_at: "2026-04-24T02:10:00.000Z",
-        estimated_at: null,
-        marker_at: "2026-04-24T02:10:00.000Z",
-        origin_airport: "김포",
-        destination_airport: "제주",
-        status: "도착",
-        line_type: "국내",
-      },
-    ],
-  };
-}
-
 function buildHolidays(): HolidayItemSummary[] {
   return [{ local_date: "2026-04-24", name: "테스트 공휴일", weekday: 4, weekday_name: "금" }];
 }
@@ -70,7 +31,6 @@ describe("HistoryChart", () => {
   test("renders 6 hour axis labels", () => {
     const { container } = render(
       <HistoryChart
-        flightStatus={buildFlightStatus()}
         holidays={buildHolidays()}
         series={buildSeries()}
         scopeLabel={"P1 \uC8FC\uCC28\uC7A5"}
@@ -102,7 +62,6 @@ describe("HistoryChart", () => {
 
     render(
       <HistoryChart
-        flightStatus={buildFlightStatus()}
         holidays={buildHolidays()}
         series={series}
         scopeLabel={"P1 \uC8FC\uCC28\uC7A5"}
@@ -133,37 +92,18 @@ describe("HistoryChart", () => {
     expect(within(tooltip).getByText(formatDateTimeWithZone(series.items[12].bucket_at))).toBeInTheDocument();
   });
 
-  test("renders flight markers and flight details inside the chart area", () => {
+  test("keeps flight markers out of the recent parking chart", () => {
     render(
       <HistoryChart
-        flightStatus={buildFlightStatus()}
         holidays={buildHolidays()}
         series={buildSeries()}
         scopeLabel={"P1 \uC8FC\uCC28\uC7A5"}
       />
     );
 
-    expect(screen.getAllByTestId("flight-marker")).toHaveLength(2);
     expect(screen.getAllByTestId("holiday-band")).toHaveLength(1);
-    expect(screen.getByTestId("flight-marker-summary")).toHaveTextContent("출발 1편 / 도착 1편");
-    expect(screen.getByTestId("flight-marker-list")).toHaveTextContent("KE1101");
-    expect(screen.getByTestId("flight-marker-list")).toHaveTextContent("제주 -> 김포");
-  });
-
-  test("highlights a flight marker when the marker chip is clicked", () => {
-    render(
-      <HistoryChart
-        flightStatus={buildFlightStatus()}
-        holidays={buildHolidays()}
-        series={buildSeries()}
-        scopeLabel={"P1 \uC8FC\uCC28\uC7A5"}
-      />
-    );
-
-    const markerButton = screen.getByText("09:40 KE1101").closest("button");
-    expect(markerButton).not.toBeNull();
-    fireEvent.click(markerButton!);
-
-    expect(screen.getByTestId("flight-highlight-label")).toHaveTextContent("KE1101");
+    expect(screen.queryByTestId("flight-marker-summary")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("flight-marker-list")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("flight-highlight-label")).not.toBeInTheDocument();
   });
 });

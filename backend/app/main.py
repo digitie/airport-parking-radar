@@ -312,7 +312,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         parking_lot_id: int | None = Query(default=None),
         days: int = Query(default=7, ge=1, le=30),
         interval_minutes: int = Query(default=30, ge=10, le=60),
-        future_hours: int = Query(default=4, ge=0, le=12),
+        future_hours: int = Query(default=0, ge=0, le=12),
         session: AsyncSession = Depends(get_db),
     ) -> ParkingTimeSeriesResponse:
         snapshots = await _load_snapshots(

@@ -273,6 +273,7 @@ describe("DashboardScreen", () => {
     expect(screen.getByTestId("desktop-lot-table")).toBeInTheDocument();
     expect(screen.queryByTestId("mobile-lot-grid")).not.toBeInTheDocument();
     expect(screen.getByTestId("history-chart")).toBeInTheDocument();
+    expect(screen.getByTestId("daily-flight-overlay-chart")).toBeInTheDocument();
     expect(screen.getByTestId("weekday-hour-heatmap")).toBeInTheDocument();
     expect(screen.getByTestId("weekday-pattern-grid")).toBeInTheDocument();
     expect(screen.getByTestId("holiday-pattern-heatmap")).toBeInTheDocument();
