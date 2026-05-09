@@ -234,9 +234,20 @@ row-level `collected_at`은 백엔드에 남아 있지만, 메인 UI에서는 �
 ### API 주소 결정
 
 - `NEXT_PUBLIC_API_BASE_URL`이 있으면 그 값을 쓴다.
-- 없으면 브라우저가 접속한 현재 호스트에 `:8000`을 붙여 API 주소를 만든다.
+- 없으면 브라우저는 같은 origin의 `/api/backend`를 호출한다.
+- Next.js 서버가 `/api/backend/*` 요청을 Docker 내부 백엔드 주소인 `BACKEND_INTERNAL_URL`로 프록시한다.
+- ODROID 기본값은 `BACKEND_INTERNAL_URL=http://backend:8000`이다.
 
-이 규칙은 LAN IP로 접속하는 ODROID 배포에서 프론트가 잘못 `localhost:8000`을 바라보지 않게 하기 위한 것이다.
+이 규칙은 내부 LAN 주소(`http://192.168.1.13:3000`)와 외부 주소(`https://pr.digitie.mywire.org/`)를 같은 빌드로 처리하고, 외부 HTTPS 페이지에서 HTTP API 포트를 직접 호출하는 문제를 피하기 위한 것이다.
+
+### 공개 서비스 보안
+
+- 외부 서비스 기준 주소는 `https://pr.digitie.mywire.org/`이다.
+- 운영 백엔드는 `TRUSTED_HOSTS_CSV`로 허용 Host를 제한한다.
+- 운영 CORS는 `http://192.168.1.13:3000`, `https://pr.digitie.mywire.org`, `http://localhost:3000`만 허용한다.
+- 운영에서는 `ENABLE_API_DOCS=false`로 API 문서를 공개하지 않는다.
+- `ADMIN_API_TOKEN`이 설정되어 있으면 `POST /admin/collect`는 토큰 없이는 실행되지 않는다.
+- `GET /admin/collector-status`는 화면 갱신과 운영 상태 확인을 위해 공개 조회로 둔다.
 
 ## 9. 배포 자산
 
@@ -278,7 +289,7 @@ row-level `collected_at`은 백엔드에 남아 있지만, 메인 UI에서는 �
 
 마지막 확인 기준:
 
-- 백엔드: `44 passed`
+- 백엔드: `49 passed`
 - 프론트: `22 passed`
 
 관련 문서:

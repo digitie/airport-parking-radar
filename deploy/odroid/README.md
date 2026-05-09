@@ -17,6 +17,9 @@
   - 비밀번호는 저장하지 않는다.
   - 현재 ODROID 기준 API 공개 포트는 `18000`이다.
     - `8000` 포트는 Portainer가 사용 중이라 충돌을 피한다.
+  - 외부 서비스 주소는 `https://pr.digitie.mywire.org/`이다.
+  - 프론트는 기본적으로 `/api/backend`를 호출하고, Next.js 서버가 `BACKEND_INTERNAL_URL=http://backend:8000`으로 프록시한다.
+  - 운영에서는 `ENABLE_API_DOCS=false`, 제한된 `CORS_ORIGINS_CSV`, 제한된 `TRUSTED_HOSTS_CSV`, `ADMIN_API_TOKEN`을 사용한다.
 
 ## 로컬 실행 스크립트
 

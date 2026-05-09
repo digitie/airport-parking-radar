@@ -2,13 +2,15 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import secrets
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from contextlib import suppress
 from datetime import date, timedelta
 
-from fastapi import Depends, FastAPI, HTTPException, Query, Request
+from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
+from starlette.middleware.trustedhost import TrustedHostMiddleware
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
@@ -96,14 +98,34 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                     await scheduler_task
             await engine.dispose()
 
-    app = FastAPI(title=resolved_settings.app_name, lifespan=lifespan)
+    app = FastAPI(
+        title=resolved_settings.app_name,
+        lifespan=lifespan,
+        docs_url="/docs" if resolved_settings.enable_api_docs else None,
+        redoc_url="/redoc" if resolved_settings.enable_api_docs else None,
+        openapi_url="/openapi.json" if resolved_settings.enable_api_docs else None,
+    )
+    if resolved_settings.trusted_hosts:
+        app.add_middleware(TrustedHostMiddleware, allowed_hosts=resolved_settings.trusted_hosts)
     app.add_middleware(
         CORSMiddleware,
         allow_origins=resolved_settings.cors_origins,
-        allow_credentials=True,
-        allow_methods=["*"],
-        allow_headers=["*"],
+        allow_credentials=False,
+        allow_methods=["GET", "POST", "OPTIONS"],
+        allow_headers=["Authorization", "Content-Type", "X-Admin-Token"],
     )
+
+    @app.middleware("http")
+    async def add_security_headers(request: Request, call_next):
+        response = await call_next(request)
+        response.headers.setdefault("X-Content-Type-Options", "nosniff")
+        response.headers.setdefault("X-Frame-Options", "DENY")
+        response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
+        response.headers.setdefault("Permissions-Policy", "camera=(), microphone=(), geolocation=()")
+        forwarded_proto = request.headers.get("x-forwarded-proto", request.url.scheme)
+        if forwarded_proto == "https":
+            response.headers.setdefault("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
+        return response
 
     def get_session_factory(request: Request) -> async_sessionmaker[AsyncSession]:
         return request.app.state.session_factory
@@ -119,6 +141,23 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     def get_flight_status_service(request: Request) -> FlightStatusService:
         return request.app.state.flight_status_service
+
+    def require_admin_token(
+        authorization: str | None = Header(default=None),
+        x_admin_token: str | None = Header(default=None),
+    ) -> None:
+        expected_token = resolved_settings.admin_api_token
+        if not expected_token:
+            return
+
+        provided_token = x_admin_token
+        if not provided_token and authorization:
+            scheme, _, token = authorization.partition(" ")
+            if scheme.lower() == "bearer" and token:
+                provided_token = token
+
+        if not provided_token or not secrets.compare_digest(provided_token, expected_token):
+            raise HTTPException(status_code=401, detail="Admin token is required.")
 
     @app.get("/health", response_model=HealthResponse)
     async def health(session: AsyncSession = Depends(get_db)) -> HealthResponse:
@@ -388,6 +427,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     @app.post("/admin/collect", response_model=CollectionSummary)
     async def admin_collect(
+        _: None = Depends(require_admin_token),
         session: AsyncSession = Depends(get_db),
         service: CollectionService = Depends(get_collection_service),
     ) -> CollectionSummary:

@@ -4,7 +4,7 @@ import { startTransition, useCallback, useEffect, useMemo, useRef, useState } fr
 
 import { DashboardScreen } from "@/components/dashboard-screen";
 import { FeeCalculator } from "@/components/fee-calculator";
-import { buildApiClient } from "@/lib/api";
+import { ApiError, buildApiClient } from "@/lib/api";
 import {
   readStoredDashboardSelection,
   writeStoredDashboardSelection,
@@ -27,6 +27,7 @@ type DashboardAppProps = {
 };
 
 const DASHBOARD_AUTO_REFRESH_INTERVAL_MS = 60_000;
+const ADMIN_TOKEN_STORAGE_KEY = "parking-radar-admin-token";
 
 function buildFlightStatusError(airportCode: string, caughtError: unknown): FlightStatusResponse {
   return {
@@ -62,6 +63,35 @@ function buildCollectorCooldownMessage(status: CollectorStatusResponse): string 
     return `마지막 업데이트 후 ${cooldownMinutes}분이 지나지 않았습니다. ${formatDateTimeWithZone(status.manual_collect_available_at)} 이후 다시 시도해 주세요.`;
   }
   return `마지막 업데이트 후 ${cooldownMinutes}분이 지나지 않았습니다. 잠시 후 다시 시도해 주세요.`;
+}
+
+function readStoredAdminToken(): string | null {
+  if (typeof window === "undefined") {
+    return null;
+  }
+
+  try {
+    const value = window.localStorage.getItem(ADMIN_TOKEN_STORAGE_KEY);
+    return value?.trim() || null;
+  } catch {
+    return null;
+  }
+}
+
+function writeStoredAdminToken(token: string): void {
+  try {
+    window.localStorage.setItem(ADMIN_TOKEN_STORAGE_KEY, token);
+  } catch {
+    // Ignore storage failures; the entered token can still be used once.
+  }
+}
+
+function clearStoredAdminToken(): void {
+  try {
+    window.localStorage.removeItem(ADMIN_TOKEN_STORAGE_KEY);
+  } catch {
+    // Ignore storage failures.
+  }
 }
 
 export function DashboardApp({
@@ -241,6 +271,34 @@ export function DashboardApp({
     [currentItems, selectedParkingLotId]
   );
 
+  async function runCollectorWithAdminToken() {
+    const storedToken = readStoredAdminToken();
+    try {
+      return await api.runCollector(storedToken ?? undefined);
+    } catch (caughtError) {
+      if (!(caughtError instanceof ApiError) || caughtError.status !== 401) {
+        throw caughtError;
+      }
+
+      clearStoredAdminToken();
+      const enteredToken = window.prompt("관리 토큰을 입력하세요.");
+      const trimmedToken = enteredToken?.trim();
+      if (!trimmedToken) {
+        throw caughtError;
+      }
+
+      writeStoredAdminToken(trimmedToken);
+      try {
+        return await api.runCollector(trimmedToken);
+      } catch (retryError) {
+        if (retryError instanceof ApiError && retryError.status === 401) {
+          clearStoredAdminToken();
+        }
+        throw retryError;
+      }
+    }
+  }
+
   async function handleManualCollect() {
     setActionMessage(null);
     setActionMessageIsError(false);
@@ -254,7 +312,7 @@ export function DashboardApp({
 
     try {
       setCollecting(true);
-      const summary = await api.runCollector();
+      const summary = await runCollectorWithAdminToken();
       await loadAirportData(selectedAirportCode, selectedParkingLotId);
       setActionMessageIsError(false);
       setActionMessage(`즉시 수집을 완료했습니다. 신규 스냅샷 ${summary.snapshot_count}건을 저장했습니다.`);

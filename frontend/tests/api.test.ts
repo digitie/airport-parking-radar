@@ -17,23 +17,19 @@ describe("api client", () => {
     );
   });
 
-  test("uses the current browser host when the API base URL is not explicitly passed", async () => {
+  test("uses the same-origin backend proxy when the API base URL is not explicitly passed", async () => {
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,
       json: async () => ({ generated_at: "2026-04-26T00:00:00.000Z", items: [] }),
     });
 
     vi.stubGlobal("fetch", fetchMock);
-    Object.defineProperty(window, "location", {
-      configurable: true,
-      value: new URL("http://192.168.1.13:3000/"),
-    });
 
     const client = buildApiClient();
     await client.getCurrent("GMP");
 
     expect(fetchMock).toHaveBeenCalledWith(
-      "http://192.168.1.13:8000/parking/current?airport_code=GMP",
+      "/api/backend/parking/current?airport_code=GMP",
       expect.objectContaining({ cache: "no-store" })
     );
   });
@@ -160,7 +156,7 @@ describe("api client", () => {
     const client = buildApiClient("http://localhost:8000");
 
     await client.getCollectorStatus();
-    await client.runCollector();
+    await client.runCollector("admin-token");
 
     expect(fetchMock).toHaveBeenNthCalledWith(
       1,
@@ -170,7 +166,11 @@ describe("api client", () => {
     expect(fetchMock).toHaveBeenNthCalledWith(
       2,
       "http://localhost:8000/admin/collect",
-      expect.objectContaining({ method: "POST", cache: "no-store" })
+      expect.objectContaining({
+        method: "POST",
+        cache: "no-store",
+        headers: expect.objectContaining({ "X-Admin-Token": "admin-token" }),
+      })
     );
   });
 });

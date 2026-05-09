@@ -14,7 +14,17 @@ import type {
   WeekdayHourlyPattern,
 } from "@/lib/types";
 
-const DEFAULT_API_PORT = process.env.NEXT_PUBLIC_API_PORT ?? "8000";
+const DEFAULT_API_BASE_PATH = "/api/backend";
+
+export class ApiError extends Error {
+  constructor(
+    message: string,
+    readonly status: number
+  ) {
+    super(message);
+    this.name = "ApiError";
+  }
+}
 
 function resolveDefaultApiBaseUrl(): string {
   const configured = process.env.NEXT_PUBLIC_API_BASE_URL?.trim();
@@ -22,13 +32,7 @@ function resolveDefaultApiBaseUrl(): string {
     return configured;
   }
 
-  if (typeof window !== "undefined") {
-    const protocol = window.location.protocol;
-    const hostname = window.location.hostname || "localhost";
-    return `${protocol}//${hostname}:${DEFAULT_API_PORT}`;
-  }
-
-  return `http://localhost:${DEFAULT_API_PORT}`;
+  return DEFAULT_API_BASE_PATH;
 }
 
 function buildAnalyticsUrl(
@@ -77,7 +81,7 @@ async function getJson<T>(url: string, init?: RequestInit): Promise<T> {
   });
 
   if (!response.ok) {
-    throw new Error(await readErrorMessage(response));
+    throw new ApiError(await readErrorMessage(response), response.status);
   }
 
   return response.json() as Promise<T>;
@@ -100,8 +104,11 @@ export function buildApiClient(apiBaseUrl?: string) {
       const params = new URLSearchParams({ airport_code: airportCode });
       return getJson<FlightStatusResponse>(`${baseUrl}/flights/status?${params.toString()}`);
     },
-    runCollector(): Promise<CollectionSummary> {
-      return getJson<CollectionSummary>(`${baseUrl}/admin/collect`, { method: "POST" });
+    runCollector(adminToken?: string): Promise<CollectionSummary> {
+      return getJson<CollectionSummary>(`${baseUrl}/admin/collect`, {
+        method: "POST",
+        headers: adminToken ? { "X-Admin-Token": adminToken } : undefined,
+      });
     },
     getByHour(airportCode: string, parkingLotId: number | null = null): Promise<HourlyBucket[]> {
       return getJson<HourlyBucket[]>(buildAnalyticsUrl(baseUrl, "/parking/analytics/by-hour", airportCode, { parkingLotId }));

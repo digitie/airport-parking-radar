@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from functools import lru_cache
 
-from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -31,6 +30,9 @@ class Settings(BaseSettings):
     enable_fee_collection: bool = False
     airport_codes_csv: str = "CJJ,CJU,GMP,HIN,ICN,KUV,KWJ,MWX,PUS,RSU,TAE,USN,WJU,YNY"
     cors_origins_csv: str = "http://localhost:3000"
+    trusted_hosts_csv: str = "localhost,127.0.0.1,testserver"
+    enable_api_docs: bool = True
+    admin_api_token: str | None = None
     api_prefix: str = ""
     use_sample_client_when_no_key: bool = True
 
@@ -41,6 +43,10 @@ class Settings(BaseSettings):
     @property
     def cors_origins(self) -> list[str]:
         return [origin.strip() for origin in self.cors_origins_csv.split(",") if origin.strip()]
+
+    @property
+    def trusted_hosts(self) -> list[str]:
+        return [host.strip() for host in self.trusted_hosts_csv.split(",") if host.strip()]
 
 
 @lru_cache

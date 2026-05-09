@@ -82,12 +82,19 @@ DATA_GO_KR_SERVICE_KEY=...
 - `ODROID_APP_DIR=/home/digitie/apps/parking-radar`
 - `PUBLIC_WEB_PORT=3000`
 - `PUBLIC_API_PORT=18000`
+- `BACKEND_INTERNAL_URL=http://backend:8000`
+- `NEXT_PUBLIC_API_BASE_URL=` 비움
+- `CORS_ORIGINS_CSV=http://192.168.1.13:3000,https://pr.digitie.mywire.org,http://localhost:3000`
+- `TRUSTED_HOSTS_CSV=192.168.1.13,pr.digitie.mywire.org,localhost,127.0.0.1,testserver,backend`
+- `ENABLE_API_DOCS=false`
+- `ADMIN_API_TOKEN=` 운영에서는 값 채움
 
 포트 메모:
 
 - 현재 ODROID에서는 `8000` 포트를 Portainer가 사용 중이다.
 - 따라서 `parking-radar` 백엔드는 `18000` 포트를 기본값으로 사용한다.
-- 프론트는 같은 호스트의 `:18000`을 API 대상으로 계산하도록 맞춘다.
+- 프론트는 기본적으로 같은 origin의 `/api/backend`를 호출하고, Next.js 서버가 Docker 내부의 `BACKEND_INTERNAL_URL`로 프록시한다.
+- 외부 서비스 주소는 `https://pr.digitie.mywire.org/`를 기준으로 한다.
 
 비밀번호는 저장하지 않으며, 배포 시에만 입력한다.
 
@@ -119,6 +126,7 @@ Windows 로컬 PowerShell 테스트만으로 ODROID에 배포하지 않는다. P
 - 원격 서버는 `docker compose` 플러그인만 있는 경우도 있고, `docker-compose` 바이너리만 있는 경우도 있다.
 - 배포 스크립트는 두 방식을 모두 지원해야 한다.
 - `.env.odroid`는 원격 셸에서 먼저 로드하므로 `--env-file` 지원 여부에 배포가 의존하지 않도록 유지한다.
+- `.env.odroid`는 원격 bash가 `source`로 읽으므로 UTF-8 without BOM, LF 줄바꿈을 유지한다. PowerShell `Set-Content -Encoding utf8`은 환경에 따라 BOM을 붙일 수 있어 원격에서 `$'\ufeffKEY=value\r': command not found` 오류를 만들 수 있다.
 - Compose 구현에 따라 `sudo` 실행 시 셸 환경 변수가 사라질 수 있으므로, 원격 스크립트는 `.env.odroid`를 `.env`로도 연결해 Compose가 직접 읽게 한다.
 - `docker-compose 1.29` 계열에서는 컨테이너 재생성 중 `ContainerConfig` 오류가 날 수 있다.
 - 이 경우 `up` 전에 `down --remove-orphans`를 거쳐 새로 올리는 방식이 더 안정적이다.
@@ -126,11 +134,22 @@ Windows 로컬 PowerShell 테스트만으로 ODROID에 배포하지 않는다. P
 
 ## 프론트 API 주소 결정 방식
 
-- `NEXT_PUBLIC_API_BASE_URL`이 비어 있으면
-- 프론트는 브라우저가 접속한 현재 호스트를 기준으로
-- `http://현재호스트:8000`을 기본 API 주소로 사용한다.
+- `NEXT_PUBLIC_API_BASE_URL`이 비어 있으면 브라우저는 같은 origin의 `/api/backend`를 호출한다.
+- Next.js 서버의 `/api/backend/*` 라우트가 `BACKEND_INTERNAL_URL`로 요청을 프록시한다.
+- Docker/ODROID 기본값은 `BACKEND_INTERNAL_URL=http://backend:8000`이다.
+- WSL에서 Next.js를 직접 실행할 때는 `BACKEND_INTERNAL_URL=http://localhost:8000`을 사용한다.
+- 명시적으로 내부/외부 API를 직접 호출해야 할 때만 `NEXT_PUBLIC_API_BASE_URL`을 채운다.
 
-이 덕분에 ODROID의 LAN IP로 접속할 때 프론트가 사용자 PC의 `localhost:8000`로 잘못 붙는 문제를 피할 수 있다.
+이 방식은 LAN IP(`http://192.168.1.13:3000`)와 외부 HTTPS 도메인(`https://pr.digitie.mywire.org/`)을 같은 빌드로 처리하고, HTTPS 페이지가 별도 HTTP API 포트를 직접 호출하면서 생기는 mixed content/CORS 문제를 피하기 위한 것이다.
+
+## 공개 서비스 보안 기준
+
+- 운영에서는 `ENABLE_API_DOCS=false`로 `/docs`, `/redoc`, `/openapi.json`을 공개하지 않는다.
+- `TRUSTED_HOSTS_CSV`에는 운영 도메인과 필요한 내부 호스트만 넣는다.
+- `CORS_ORIGINS_CSV`에는 실제 웹 origin만 넣고 와일드카드를 쓰지 않는다.
+- `POST /admin/collect`는 `ADMIN_API_TOKEN`이 설정되어 있으면 `X-Admin-Token` 또는 `Authorization: Bearer` 토큰 없이는 실행되지 않는다.
+- 웹 UI의 `지금 수집` 버튼은 토큰이 필요할 때 브라우저에서 한 번 입력받아 로컬 저장소에 보관한다.
+- 백엔드는 `X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy`, `Permissions-Policy`, HTTPS 접근 시 `Strict-Transport-Security`를 응답 헤더로 내려준다.
 
 ## 빠른 라이브 검증용 스택
 

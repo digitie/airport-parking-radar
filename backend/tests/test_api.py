@@ -70,6 +70,30 @@ def test_health(client) -> None:
     assert payload["seeded"] is True
 
 
+def test_security_headers(client) -> None:
+    response = client.get("/health", headers={"x-forwarded-proto": "https"})
+    assert response.status_code == 200
+    assert response.headers["x-content-type-options"] == "nosniff"
+    assert response.headers["x-frame-options"] == "DENY"
+    assert response.headers["referrer-policy"] == "strict-origin-when-cross-origin"
+    assert response.headers["strict-transport-security"] == "max-age=31536000; includeSubDomains"
+
+
+def test_api_docs_can_be_disabled(tmp_path: Path) -> None:
+    with build_client(tmp_path, enable_api_docs=False) as client:
+        assert client.get("/docs").status_code == 404
+        assert client.get("/openapi.json").status_code == 404
+
+
+def test_trusted_host_rejects_unexpected_hosts(tmp_path: Path) -> None:
+    with build_client(tmp_path, trusted_hosts_csv="parking.local") as client:
+        rejected = client.get("/health", headers={"host": "unexpected.local"})
+        accepted = client.get("/health", headers={"host": "parking.local"})
+
+    assert rejected.status_code == 400
+    assert accepted.status_code == 200
+
+
 def test_airports(client) -> None:
     response = client.get("/airports")
     assert response.status_code == 200
@@ -213,6 +237,17 @@ def test_admin_collect_succeeds_when_cooldown_is_disabled(tmp_path: Path) -> Non
         assert payload["status"] in {"success", "partial_success"}
         assert payload["client_mode"] == "sample"
         assert payload["raw_response_count"] >= 1
+
+
+def test_admin_collect_requires_token_when_configured(tmp_path: Path) -> None:
+    with build_client(tmp_path, admin_api_token="secret-token", manual_collect_min_interval_seconds=0) as client:
+        missing = client.post("/admin/collect")
+        wrong = client.post("/admin/collect", headers={"X-Admin-Token": "wrong-token"})
+        accepted = client.post("/admin/collect", headers={"X-Admin-Token": "secret-token"})
+
+    assert missing.status_code == 401
+    assert wrong.status_code == 401
+    assert accepted.status_code == 200
 
 
 def test_admin_collector_status(client) -> None:

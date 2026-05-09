@@ -191,11 +191,15 @@ in-app browser 또는 브라우저에서 다음을 확인한다.
 배포 후에는 최소한 아래를 확인한다.
 
 - `http://192.168.1.13:3000` 응답
+- `https://pr.digitie.mywire.org/` 응답
+- `http://192.168.1.13:3000/api/backend/health` 응답
+- `https://pr.digitie.mywire.org/api/backend/health` 응답
 - `http://192.168.1.13:18000/health` 응답
 - `http://192.168.1.13:18000/admin/collector-status`에서
   - `client_mode=live`
   - `scheduler_enabled=true`
   - `upstream_rate_limited=false`
+- `POST /admin/collect`는 운영 토큰 없이 `401`을 반환하는지 확인
 - 웹 UI에서
   - 현재 시각 표시가 KST 기준인지 확인
   - `지금 수집` 버튼이 노출되는지 확인

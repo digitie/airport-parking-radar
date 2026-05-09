@@ -144,8 +144,10 @@
 ## 운영용 API 주소 처리
 
 - 프론트는 `NEXT_PUBLIC_API_BASE_URL`이 설정되어 있으면 그 값을 사용한다.
-- 값이 비어 있으면 브라우저가 접속한 현재 호스트를 기준으로 `:8000` 포트를 붙여 API 주소를 계산한다.
-- 이 방식은 LAN IP로 접속하는 ODROID 배포에서 `localhost` 오동작을 피하기 위한 기본값이다.
+- 값이 비어 있으면 같은 origin의 `/api/backend`를 호출한다.
+- Next.js 서버는 `/api/backend/*` 라우트에서 허용된 백엔드 경로만 `BACKEND_INTERNAL_URL`로 프록시한다.
+- Docker/ODROID 기본값은 `BACKEND_INTERNAL_URL=http://backend:8000`이다.
+- 이 방식은 LAN IP와 `https://pr.digitie.mywire.org/` 외부 도메인을 같은 빌드로 처리하고, 외부 HTTPS 페이지가 HTTP API 포트를 직접 호출하는 문제를 피하기 위한 기본값이다.
 
 ## 운영상 주의할 점
 

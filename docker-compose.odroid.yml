@@ -19,7 +19,10 @@ services:
       UPSTREAM_RATE_LIMIT_BACKOFF_SECONDS: "${UPSTREAM_RATE_LIMIT_BACKOFF_SECONDS:-3600}"
       API_TIMEOUT_SECONDS: "${API_TIMEOUT_SECONDS:-15}"
       AIRPORT_CODES_CSV: "${AIRPORT_CODES_CSV:-GMP,PUS,CJU,ICN}"
-      CORS_ORIGINS_CSV: "${CORS_ORIGINS_CSV:-http://192.168.1.13:3000,http://localhost:3000}"
+      CORS_ORIGINS_CSV: "${CORS_ORIGINS_CSV:-http://192.168.1.13:3000,https://pr.digitie.mywire.org,http://localhost:3000}"
+      TRUSTED_HOSTS_CSV: "${TRUSTED_HOSTS_CSV:-192.168.1.13,pr.digitie.mywire.org,localhost,127.0.0.1,testserver,backend}"
+      ENABLE_API_DOCS: "${ENABLE_API_DOCS:-false}"
+      ADMIN_API_TOKEN: "${ADMIN_API_TOKEN:-}"
       APP_TIMEZONE: "${APP_TIMEZONE:-Asia/Seoul}"
       DATA_GO_KR_SERVICE_KEY: "${DATA_GO_KR_SERVICE_KEY:-}"
     volumes:
@@ -44,6 +47,8 @@ services:
     depends_on:
       backend:
         condition: service_healthy
+    environment:
+      BACKEND_INTERNAL_URL: "${BACKEND_INTERNAL_URL:-http://backend:8000}"
     ports:
       - "${PUBLIC_WEB_PORT:-3000}:3000"
 

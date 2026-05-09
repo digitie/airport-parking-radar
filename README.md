@@ -69,6 +69,7 @@ docker compose up -d
 배포 기준 정보는 루트의 [.env.odroid](</F:/dev/parking-radar/.env.odroid>)에 저장한다.
 
 - 대상 IP: `192.168.1.13`
+- 외부 주소: [https://pr.digitie.mywire.org/](https://pr.digitie.mywire.org/)
 - 사용자: `digitie`
 - 앱 디렉터리: `/home/digitie/apps/parking-radar`
 
@@ -93,6 +94,15 @@ docker compose up -d
 ```powershell
 .\scripts\odroid-status.ps1
 ```
+
+운영 프론트는 기본적으로 같은 origin의 `/api/backend`를 호출하고, Next.js 서버가 Docker 내부 백엔드(`BACKEND_INTERNAL_URL=http://backend:8000`)로 프록시한다. 그래서 내부 LAN 주소와 외부 HTTPS 주소를 같은 빌드로 처리한다.
+
+운영 보안 기본값:
+
+- `CORS_ORIGINS_CSV`는 내부 웹 주소와 `https://pr.digitie.mywire.org`만 허용한다.
+- `TRUSTED_HOSTS_CSV`는 운영 도메인/내부 호스트만 허용한다.
+- `ENABLE_API_DOCS=false`로 공개 API 문서를 닫는다.
+- `ADMIN_API_TOKEN`이 있으면 `지금 수집` 실행 시 관리 토큰이 필요하다.
 
 ## 실데이터 수집
 
@@ -140,6 +150,12 @@ DATA_GO_KR_SERVICE_KEY=...
 
 ```bash
 curl -X POST http://localhost:8000/admin/collect
+```
+
+운영에서 `ADMIN_API_TOKEN`이 설정되어 있으면 다음처럼 토큰을 함께 보낸다.
+
+```bash
+curl -X POST -H "X-Admin-Token: <token>" http://localhost:8000/admin/collect
 ```
 
 상태 확인:
