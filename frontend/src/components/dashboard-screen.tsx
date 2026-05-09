@@ -1,6 +1,6 @@
 "use client";
 
-import type { CSSProperties } from "react";
+import type { CSSProperties, ReactNode } from "react";
 
 import { DailyFlightOverlayChart } from "@/components/daily-flight-overlay-chart";
 import { HistoryChart } from "@/components/history-chart";
@@ -49,6 +49,14 @@ type DashboardScreenProps = {
   onParkingLotChange: (parkingLotId: number | null) => void;
   onRefresh: () => void;
   onManualCollect: () => void;
+};
+
+type ResponsiveSectionProps = {
+  children: ReactNode;
+  defaultOpen?: boolean;
+  isMobile: boolean;
+  summary?: string;
+  title: string;
 };
 
 const HOURS = Array.from({ length: 24 }, (_, hour) => hour);
@@ -225,6 +233,28 @@ function hasThresholdSamples(items: ThresholdWeekdayTime[]): boolean {
 
 function historyLabel(selectedParkingLotName: string | null, airportName: string | undefined): string {
   return selectedParkingLotName ?? `${airportName ?? "공항"} 전체`;
+}
+
+function ResponsiveSection({
+  children,
+  defaultOpen = false,
+  isMobile,
+  summary,
+  title,
+}: ResponsiveSectionProps) {
+  if (!isMobile) {
+    return <>{children}</>;
+  }
+
+  return (
+    <details className="mobile-disclosure" data-testid="mobile-disclosure" open={defaultOpen}>
+      <summary>
+        <span>{title}</span>
+        {summary ? <small>{summary}</small> : null}
+      </summary>
+      <div className="mobile-disclosure-body">{children}</div>
+    </details>
+  );
 }
 
 export function DashboardScreen({
@@ -468,12 +498,18 @@ export function DashboardScreen({
           scopeLabel={scopeLabel}
         />
 
-        <DailyFlightOverlayChart
-          flightStatus={flightStatus}
-          holidays={holidaySummary?.items ?? []}
-          series={timeSeries}
-          scopeLabel={scopeLabel}
-        />
+        <ResponsiveSection
+          isMobile={isMobile}
+          summary="출도착 마커와 하루 0-24시 흐름"
+          title="비행편 흐름"
+        >
+          <DailyFlightOverlayChart
+            flightStatus={flightStatus}
+            holidays={holidaySummary?.items ?? []}
+            series={timeSeries}
+            scopeLabel={scopeLabel}
+          />
+        </ResponsiveSection>
 
         <article className="panel-surface panel-full-span">
           <div className="panel-head">
@@ -558,257 +594,281 @@ export function DashboardScreen({
           )}
         </article>
 
-        <article className="panel-surface panel-full-span">
-          <div className="panel-head">
-            <h3>요일별 패턴</h3>
-          </div>
-          {weekdayHourlyPatterns.length === 0 ? (
-            <p className="notice">표시할 요일별 패턴 데이터가 없습니다.</p>
-          ) : (
-            <div className="weekday-pattern-grid" data-testid="weekday-pattern-grid">
-              {weekdayHourlyPatterns.map((pattern) => {
-                const { tightestHour, loosestHour } = summarizePattern(pattern);
-                return (
-                  <article key={`weekday-pattern-${pattern.weekday}`} className="weekday-detail-card">
-                    <div className="weekday-detail-head">
-                      <div>
-                        <h4>{pattern.weekday_name}</h4>
-                        <p>
-                          평균{" "}
-                          {pattern.average_available_spaces === null
-                            ? "-"
-                            : `${formatNumber(Math.round(pattern.average_available_spaces))}대`}
-                        </p>
-                      </div>
-                      <div className="weekday-detail-summary">
-                        <span>
-                          가장 빠듯함{" "}
-                          {tightestHour?.average_available_spaces !== null && tightestHour
-                            ? `${formatHourLabel(tightestHour.hour)} ${formatNumber(Math.round(tightestHour.average_available_spaces))}대`
-                            : "-"}
-                        </span>
-                        <span>
-                          가장 여유{" "}
-                          {loosestHour?.average_available_spaces !== null && loosestHour
-                            ? `${formatHourLabel(loosestHour.hour)} ${formatNumber(Math.round(loosestHour.average_available_spaces))}대`
-                            : "-"}
-                        </span>
-                      </div>
-                    </div>
-                    <div className="hour-chip-grid">
-                      {pattern.hourly_buckets.map((bucket) => (
-                        <div
-                          key={`hour-chip-${pattern.weekday}-${bucket.hour}`}
-                          className="hour-chip"
-                          style={buildAvailabilityHeatStyle(bucket.average_available_spaces, maxHeatValue)}
-                        >
-                          <span>{formatHourLabel(bucket.hour)}</span>
-                          <strong>
-                            {bucket.average_available_spaces === null
-                              ? "-"
-                              : `${formatNumber(Math.round(bucket.average_available_spaces))}대`}
-                          </strong>
-                        </div>
-                      ))}
-                    </div>
-                  </article>
-                );
-              })}
+        <ResponsiveSection
+          isMobile={isMobile}
+          summary="요일별 24시간 상세 카드"
+          title="요일별 상세 패턴"
+        >
+          <article className="panel-surface panel-full-span">
+            <div className="panel-head">
+              <h3>요일별 패턴</h3>
             </div>
-          )}
-        </article>
-
-        <article className="panel-surface panel-full-span">
-          <div className="panel-head">
-            <div>
-              <h3>공휴일 패턴</h3>
-              <p>최근 8개 공휴일 날짜별 시간대 잔여 주차면</p>
-            </div>
-          </div>
-          {holidayPatternItems.length === 0 ? (
-            <p className="notice">표시할 공휴일 패턴 데이터가 없습니다.</p>
-          ) : (
-            <>
-              {holidayPatterns?.error_message ? (
-                <p className="notice error">{holidayPatterns.error_message}</p>
-              ) : null}
-              <div className="heatmap-scroll" data-testid="holiday-pattern-heatmap">
-                <table className="heatmap-table holiday-heatmap-table">
-                  <thead>
-                    <tr>
-                      <th>공휴일</th>
-                      {HOURS.map((hour) => (
-                        <th key={`holiday-hour-${hour}`}>{String(hour).padStart(2, "0")}</th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {holidayPatternItems.map((pattern) => (
-                      <tr key={`holiday-row-${pattern.local_date}-${pattern.name}`}>
-                        <th>
-                          <strong>{formatHolidayDate(pattern.local_date, pattern.weekday_name)}</strong>
-                          <small>{pattern.name}</small>
-                        </th>
-                        {pattern.hourly_buckets.map((bucket) => (
-                          <td
-                            key={`holiday-cell-${pattern.local_date}-${bucket.hour}`}
-                            data-testid={`holiday-hour-cell-${pattern.local_date}-${bucket.hour}`}
-                            style={buildAvailabilityHeatStyle(bucket.average_available_spaces, maxHolidayHeatValue)}
-                            title={
-                              bucket.average_available_spaces === null
-                                ? `${pattern.name} ${formatHourLabel(bucket.hour)} 관측 없음`
-                                : `${pattern.name} ${formatHourLabel(bucket.hour)} 평균 ${Math.round(bucket.average_available_spaces)}대`
-                            }
-                          >
-                            {bucket.average_available_spaces === null ? "-" : Math.round(bucket.average_available_spaces)}
-                          </td>
-                        ))}
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-
-              <div className="holiday-pattern-grid" data-testid="holiday-pattern-grid">
-                {holidayPatternItems.map((pattern) => {
-                  const { tightestHour, loosestHour } = summarizeHolidayPattern(pattern);
+            {weekdayHourlyPatterns.length === 0 ? (
+              <p className="notice">표시할 요일별 패턴 데이터가 없습니다.</p>
+            ) : (
+              <div className="weekday-pattern-grid" data-testid="weekday-pattern-grid">
+                {weekdayHourlyPatterns.map((pattern) => {
+                  const { tightestHour, loosestHour } = summarizePattern(pattern);
                   return (
-                    <article key={`holiday-card-${pattern.local_date}-${pattern.name}`} className="weekday-detail-card">
+                    <article key={`weekday-pattern-${pattern.weekday}`} className="weekday-detail-card">
                       <div className="weekday-detail-head">
                         <div>
-                          <h4>{formatHolidayDate(pattern.local_date, pattern.weekday_name)}</h4>
-                          <p>{pattern.name}</p>
-                        </div>
-                        <div className="weekday-detail-summary">
-                          <span>
+                          <h4>{pattern.weekday_name}</h4>
+                          <p>
                             평균{" "}
                             {pattern.average_available_spaces === null
                               ? "-"
                               : `${formatNumber(Math.round(pattern.average_available_spaces))}대`}
+                          </p>
+                        </div>
+                        <div className="weekday-detail-summary">
+                          <span>
+                            가장 빠듯함{" "}
+                            {tightestHour?.average_available_spaces !== null && tightestHour
+                              ? `${formatHourLabel(tightestHour.hour)} ${formatNumber(Math.round(tightestHour.average_available_spaces))}대`
+                              : "-"}
                           </span>
-                          <span>관측 {formatNumber(pattern.observations)}개</span>
+                          <span>
+                            가장 여유{" "}
+                            {loosestHour?.average_available_spaces !== null && loosestHour
+                              ? `${formatHourLabel(loosestHour.hour)} ${formatNumber(Math.round(loosestHour.average_available_spaces))}대`
+                              : "-"}
+                          </span>
                         </div>
                       </div>
-                      <div className="holiday-extreme-row">
-                        <span>
-                          가장 빠듯함{" "}
-                          {tightestHour?.average_available_spaces !== null && tightestHour
-                            ? `${formatHourLabel(tightestHour.hour)} ${formatNumber(Math.round(tightestHour.average_available_spaces))}대`
-                            : "-"}
-                        </span>
-                        <span>
-                          가장 여유{" "}
-                          {loosestHour?.average_available_spaces !== null && loosestHour
-                            ? `${formatHourLabel(loosestHour.hour)} ${formatNumber(Math.round(loosestHour.average_available_spaces))}대`
-                            : "-"}
-                        </span>
+                      <div className="hour-chip-grid">
+                        {pattern.hourly_buckets.map((bucket) => (
+                          <div
+                            key={`hour-chip-${pattern.weekday}-${bucket.hour}`}
+                            className="hour-chip"
+                            style={buildAvailabilityHeatStyle(bucket.average_available_spaces, maxHeatValue)}
+                          >
+                            <span>{formatHourLabel(bucket.hour)}</span>
+                            <strong>
+                              {bucket.average_available_spaces === null
+                                ? "-"
+                                : `${formatNumber(Math.round(bucket.average_available_spaces))}대`}
+                            </strong>
+                          </div>
+                        ))}
                       </div>
                     </article>
                   );
                 })}
               </div>
-            </>
-          )}
-        </article>
+            )}
+          </article>
+        </ResponsiveSection>
 
-        <article className="panel-surface">
-          <div className="panel-head">
-            <h3>요일별 임계 달성 시간</h3>
-          </div>
-          {showThresholdInsights ? (
-            <div className="threshold-table-wrap" data-testid="threshold-weekday-grid">
-              <table className="threshold-table">
-                <thead>
-                  <tr>
-                    <th>기준</th>
-                    {WEEKDAYS.map((weekday) => (
-                      <th key={`threshold-weekday-${weekday}`}>{weekday}</th>
+        <ResponsiveSection
+          isMobile={isMobile}
+          summary="공휴일 날짜별 시간대 경향"
+          title="공휴일 패턴"
+        >
+          <article className="panel-surface panel-full-span">
+            <div className="panel-head">
+              <div>
+                <h3>공휴일 패턴</h3>
+                <p>최근 8개 공휴일 날짜별 시간대 잔여 주차면</p>
+              </div>
+            </div>
+            {holidayPatternItems.length === 0 ? (
+              <p className="notice">표시할 공휴일 패턴 데이터가 없습니다.</p>
+            ) : (
+              <>
+                {holidayPatterns?.error_message ? (
+                  <p className="notice error">{holidayPatterns.error_message}</p>
+                ) : null}
+                <div className="heatmap-scroll" data-testid="holiday-pattern-heatmap">
+                  <table className="heatmap-table holiday-heatmap-table">
+                    <thead>
+                      <tr>
+                        <th>공휴일</th>
+                        {HOURS.map((hour) => (
+                          <th key={`holiday-hour-${hour}`}>{String(hour).padStart(2, "0")}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {holidayPatternItems.map((pattern) => (
+                        <tr key={`holiday-row-${pattern.local_date}-${pattern.name}`}>
+                          <th>
+                            <strong>{formatHolidayDate(pattern.local_date, pattern.weekday_name)}</strong>
+                            <small>{pattern.name}</small>
+                          </th>
+                          {pattern.hourly_buckets.map((bucket) => (
+                            <td
+                              key={`holiday-cell-${pattern.local_date}-${bucket.hour}`}
+                              data-testid={`holiday-hour-cell-${pattern.local_date}-${bucket.hour}`}
+                              style={buildAvailabilityHeatStyle(bucket.average_available_spaces, maxHolidayHeatValue)}
+                              title={
+                                bucket.average_available_spaces === null
+                                  ? `${pattern.name} ${formatHourLabel(bucket.hour)} 관측 없음`
+                                  : `${pattern.name} ${formatHourLabel(bucket.hour)} 평균 ${Math.round(bucket.average_available_spaces)}대`
+                              }
+                            >
+                              {bucket.average_available_spaces === null ? "-" : Math.round(bucket.average_available_spaces)}
+                            </td>
+                          ))}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+
+                <div className="holiday-pattern-grid" data-testid="holiday-pattern-grid">
+                  {holidayPatternItems.map((pattern) => {
+                    const { tightestHour, loosestHour } = summarizeHolidayPattern(pattern);
+                    return (
+                      <article key={`holiday-card-${pattern.local_date}-${pattern.name}`} className="weekday-detail-card">
+                        <div className="weekday-detail-head">
+                          <div>
+                            <h4>{formatHolidayDate(pattern.local_date, pattern.weekday_name)}</h4>
+                            <p>{pattern.name}</p>
+                          </div>
+                          <div className="weekday-detail-summary">
+                            <span>
+                              평균{" "}
+                              {pattern.average_available_spaces === null
+                                ? "-"
+                                : `${formatNumber(Math.round(pattern.average_available_spaces))}대`}
+                            </span>
+                            <span>관측 {formatNumber(pattern.observations)}개</span>
+                          </div>
+                        </div>
+                        <div className="holiday-extreme-row">
+                          <span>
+                            가장 빠듯함{" "}
+                            {tightestHour?.average_available_spaces !== null && tightestHour
+                              ? `${formatHourLabel(tightestHour.hour)} ${formatNumber(Math.round(tightestHour.average_available_spaces))}대`
+                              : "-"}
+                          </span>
+                          <span>
+                            가장 여유{" "}
+                            {loosestHour?.average_available_spaces !== null && loosestHour
+                              ? `${formatHourLabel(loosestHour.hour)} ${formatNumber(Math.round(loosestHour.average_available_spaces))}대`
+                              : "-"}
+                          </span>
+                        </div>
+                      </article>
+                    );
+                  })}
+                </div>
+              </>
+            )}
+          </article>
+        </ResponsiveSection>
+
+        <ResponsiveSection
+          isMobile={isMobile}
+          summary="10대/50대 미만이 되는 시간"
+          title="임계 달성 시간"
+        >
+          <article className="panel-surface">
+            <div className="panel-head">
+              <h3>요일별 임계 달성 시간</h3>
+            </div>
+            {showThresholdInsights ? (
+              <div className="threshold-table-wrap" data-testid="threshold-weekday-grid">
+                <table className="threshold-table">
+                  <thead>
+                    <tr>
+                      <th>기준</th>
+                      {WEEKDAYS.map((weekday) => (
+                        <th key={`threshold-weekday-${weekday}`}>{weekday}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {THRESHOLDS.map((threshold) => (
+                      <tr key={`threshold-row-${threshold}`}>
+                        <th>{formatThresholdLabel(threshold)}</th>
+                        {WEEKDAYS.map((_, weekday) => {
+                          const item = getThresholdWeekdayItem(thresholdWeekdayItems, threshold, weekday);
+                          return (
+                            <td key={`threshold-cell-${threshold}-${weekday}`}>
+                              <strong>{formatMinutesOfDay(item?.typical_minutes_of_day ?? null)}</strong>
+                              <small>{item && item.sample_count > 0 ? `${item.sample_count}회` : "기록 없음"}</small>
+                            </td>
+                          );
+                        })}
+                      </tr>
                     ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {THRESHOLDS.map((threshold) => (
-                    <tr key={`threshold-row-${threshold}`}>
-                      <th>{formatThresholdLabel(threshold)}</th>
-                      {WEEKDAYS.map((_, weekday) => {
-                        const item = getThresholdWeekdayItem(thresholdWeekdayItems, threshold, weekday);
-                        return (
-                          <td key={`threshold-cell-${threshold}-${weekday}`}>
-                            <strong>{formatMinutesOfDay(item?.typical_minutes_of_day ?? null)}</strong>
-                            <small>{item && item.sample_count > 0 ? `${item.sample_count}회` : "기록 없음"}</small>
-                          </td>
-                        );
-                      })}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          ) : (
-            <p className="notice">임계 달성 시각을 계산할 만큼 충분한 기록이 없습니다.</p>
-          )}
-        </article>
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <p className="notice">임계 달성 시각을 계산할 만큼 충분한 기록이 없습니다.</p>
+            )}
+          </article>
 
-        <article className="panel-surface">
-          <div className="panel-head">
-            <h3>날짜별 임계 달성 시간</h3>
-          </div>
-          {thresholdHistoryItems.length > 0 ? (
-            <div className="threshold-scroll" data-testid="threshold-history-scroll">
-              <table className="threshold-history-table">
-                <thead>
-                  <tr>
-                    <th>날짜</th>
-                    <th>기준</th>
-                    <th>달성 시각</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {thresholdHistoryItems.map((item: ThresholdDateHistoryItem) => (
-                    <tr key={`${item.threshold}-${item.local_date}-${item.crossed_at}`}>
-                      <td>{formatDateCell(item.local_date, item.weekday_name)}</td>
-                      <td>{formatThresholdLabel(item.threshold)}</td>
-                      <td>
-                        {formatMinutesOfDay(item.minutes_of_day)}
-                        <small>{formatNumber(item.available_spaces)}대</small>
-                      </td>
+          <article className="panel-surface">
+            <div className="panel-head">
+              <h3>날짜별 임계 달성 시간</h3>
+            </div>
+            {thresholdHistoryItems.length > 0 ? (
+              <div className="threshold-scroll" data-testid="threshold-history-scroll">
+                <table className="threshold-history-table">
+                  <thead>
+                    <tr>
+                      <th>날짜</th>
+                      <th>기준</th>
+                      <th>달성 시각</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          ) : (
-            <p className="notice">최근 기준에서 임계 달성 기록이 없습니다.</p>
-          )}
-        </article>
+                  </thead>
+                  <tbody>
+                    {thresholdHistoryItems.map((item: ThresholdDateHistoryItem) => (
+                      <tr key={`${item.threshold}-${item.local_date}-${item.crossed_at}`}>
+                        <td>{formatDateCell(item.local_date, item.weekday_name)}</td>
+                        <td>{formatThresholdLabel(item.threshold)}</td>
+                        <td>
+                          {formatMinutesOfDay(item.minutes_of_day)}
+                          <small>{formatNumber(item.available_spaces)}대</small>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <p className="notice">최근 기준에서 임계 달성 기록이 없습니다.</p>
+            )}
+          </article>
+        </ResponsiveSection>
 
-        <article className="panel-surface panel-full-span threshold-panel">
-          <div className="panel-head">
-            <h3>임계치 이벤트</h3>
-          </div>
-          {thresholdEvents.length === 0 ? (
-            <p className="notice">선택한 기준에서 최근 임계치 이벤트가 없습니다.</p>
-          ) : (
-            <div className="threshold-scroll" data-testid="threshold-events-scroll">
-              <ul className="threshold-list">
-                {thresholdEvents.map((event) => (
-                  <li key={`${event.parking_lot_id}-${event.threshold}-${event.crossed_at}-${event.direction}`}>
-                    <div>
-                      <strong>{event.parking_lot_name}</strong>
-                      <span>{formatDateTimeWithZone(event.crossed_at)}</span>
-                    </div>
-                    <p>
-                      {formatNumber(event.threshold)}대{" "}
-                      {event.direction === "down" ? "미만 진입" : "이상 회복"}:{" "}
-                      {formatNumber(event.previous_available_spaces)}대에서{" "}
-                      {formatNumber(event.current_available_spaces)}대로 변했습니다.
-                    </p>
-                  </li>
-                ))}
-              </ul>
+        <ResponsiveSection
+          isMobile={isMobile}
+          summary="최근 임계치 변동 로그"
+          title="임계치 이벤트"
+        >
+          <article className="panel-surface panel-full-span threshold-panel">
+            <div className="panel-head">
+              <h3>임계치 이벤트</h3>
             </div>
-          )}
-        </article>
+            {thresholdEvents.length === 0 ? (
+              <p className="notice">선택한 기준에서 최근 임계치 이벤트가 없습니다.</p>
+            ) : (
+              <div className="threshold-scroll" data-testid="threshold-events-scroll">
+                <ul className="threshold-list">
+                  {thresholdEvents.map((event) => (
+                    <li key={`${event.parking_lot_id}-${event.threshold}-${event.crossed_at}-${event.direction}`}>
+                      <div>
+                        <strong>{event.parking_lot_name}</strong>
+                        <span>{formatDateTimeWithZone(event.crossed_at)}</span>
+                      </div>
+                      <p>
+                        {formatNumber(event.threshold)}대{" "}
+                        {event.direction === "down" ? "미만 진입" : "이상 회복"}:{" "}
+                        {formatNumber(event.previous_available_spaces)}대에서{" "}
+                        {formatNumber(event.current_available_spaces)}대로 변했습니다.
+                      </p>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </article>
+        </ResponsiveSection>
       </section>
 
       {visibleItems.length === 0 ? <p className="notice">조건에 맞는 주차장이 없습니다.</p> : null}

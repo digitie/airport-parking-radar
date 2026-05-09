@@ -326,6 +326,9 @@ describe("DashboardScreen", () => {
     expect(screen.queryByTestId("desktop-lot-table")).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "즉시 수집 실행" })).toBeInTheDocument();
     expect(screen.getAllByText("국내선 제1주차장").length).toBeGreaterThan(0);
+    expect(screen.getByText("비행편 흐름")).toBeInTheDocument();
+    expect(screen.getByText("요일별 상세 패턴")).toBeInTheDocument();
+    expect(screen.getAllByTestId("mobile-disclosure").length).toBeGreaterThanOrEqual(4);
   });
 
   test("calls lot change handler when selecting a parking lot", async () => {

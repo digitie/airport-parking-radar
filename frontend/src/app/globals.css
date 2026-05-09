@@ -1204,6 +1204,70 @@ select {
   background: rgba(188, 58, 45, 0.08);
 }
 
+.mobile-disclosure {
+  grid-column: 1 / -1;
+}
+
+.mobile-disclosure summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 54px;
+  padding: 14px 16px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: rgba(255, 252, 247, 0.86);
+  box-shadow: var(--shadow);
+  color: var(--ink);
+  cursor: pointer;
+  list-style: none;
+}
+
+.mobile-disclosure summary::-webkit-details-marker {
+  display: none;
+}
+
+.mobile-disclosure summary::after {
+  content: "+";
+  flex: 0 0 auto;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: rgba(31, 37, 48, 0.08);
+  color: var(--ink);
+  font-size: 1.15rem;
+  font-weight: 700;
+  line-height: 26px;
+  text-align: center;
+}
+
+.mobile-disclosure[open] summary::after {
+  content: "-";
+}
+
+.mobile-disclosure summary span,
+.mobile-disclosure summary small {
+  display: block;
+}
+
+.mobile-disclosure summary span {
+  font-weight: 750;
+}
+
+.mobile-disclosure summary small {
+  margin-top: 3px;
+  color: var(--muted);
+  font-size: 0.78rem;
+  line-height: 1.35;
+}
+
+.mobile-disclosure-body {
+  display: grid;
+  gap: 12px;
+  margin-top: 10px;
+}
+
 @media (max-width: 980px) {
   .analytics-grid,
   .fee-form {
@@ -1230,6 +1294,57 @@ select {
     width: min(100% - 24px, 720px);
   }
 
+  .page-header {
+    padding: 14px 0 10px;
+  }
+
+  .page-header h1 {
+    font-size: 1.12rem;
+  }
+
+  .site-mark {
+    font-size: 0.68rem;
+  }
+
+  .control-band,
+  .metric-card,
+  .panel-surface,
+  .table-surface,
+  .lot-card,
+  .spotlight {
+    border-radius: 14px;
+  }
+
+  .control-band {
+    gap: 10px;
+    padding: 14px;
+  }
+
+  .field {
+    gap: 6px;
+  }
+
+  .field span,
+  .metric-card span,
+  .spotlight span {
+    font-size: 0.82rem;
+  }
+
+  .input,
+  .button {
+    min-height: 42px;
+    border-radius: 10px;
+  }
+
+  .action-stack {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .action-hint {
+    grid-column: 1 / -1;
+    font-size: 0.76rem;
+  }
+
   .status-header,
   .panel-head,
   .quote-total {
@@ -1240,18 +1355,250 @@ select {
   .spotlight {
     width: 100%;
     min-width: 0;
+    padding: 14px 16px;
+  }
+
+  .spotlight strong {
+    font-size: 2.3rem;
+  }
+
+  .status-header {
+    gap: 10px;
+    padding: 14px 0 10px;
+  }
+
+  .status-header h2 {
+    font-size: 1.35rem;
+    line-height: 1.2;
+  }
+
+  .status-meta {
+    gap: 4px;
+    font-size: 0.82rem;
+  }
+
+  .holiday-sentence {
+    line-height: 1.45;
+  }
+
+  .detail-ribbon {
+    gap: 10px;
+    padding-bottom: 12px;
+  }
+
+  .detail-ribbon-compact .detail-card:first-child {
+    display: none;
+  }
+
+  .detail-card {
+    padding: 13px 14px;
+  }
+
+  .detail-card strong {
+    font-size: 1.05rem;
+    line-height: 1.22;
+  }
+
+  .lot-card-grid {
+    gap: 10px;
+  }
+
+  .lot-card {
+    padding: 13px 14px;
+  }
+
+  .lot-card h3 {
+    font-size: 0.98rem;
+    line-height: 1.25;
+  }
+
+  .lot-card p {
+    margin: 4px 0 0;
+  }
+
+  .pill {
+    min-width: 0;
+    white-space: nowrap;
+  }
+
+  .lot-card-stats {
+    margin-top: 12px;
+  }
+
+  .lot-card-stats strong {
+    font-size: 1rem;
+  }
+
+  .stamp {
+    margin-top: 10px;
+    font-size: 0.78rem;
+  }
+
+  .analytics-grid {
+    gap: 12px;
+    padding: 14px 0 30px;
+  }
+
+  .panel-surface,
+  .table-surface {
+    padding: 14px;
+  }
+
+  .panel-head {
+    gap: 6px;
+    margin-bottom: 12px;
+  }
+
+  .panel-head h3 {
+    font-size: 1rem;
+    line-height: 1.3;
+  }
+
+  .panel-head p,
+  .section-hint,
+  .history-scope {
+    font-size: 0.78rem;
+    line-height: 1.35;
+  }
+
+  .history-summary {
+    gap: 8px;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    margin-bottom: 12px;
+  }
+
+  .summary-chip {
+    padding: 10px;
+    border-radius: 12px;
+  }
+
+  .summary-chip strong {
+    font-size: 1.05rem;
+  }
+
+  .summary-chip:nth-child(4) {
+    display: none;
+  }
+
+  .history-chart-shell,
+  .daily-overlay-chart-shell,
+  .heatmap-scroll,
+  .threshold-table-wrap {
+    margin-inline: -14px;
+    padding-inline: 14px;
+  }
+
+  .daily-overlay-controls {
+    grid-template-columns: 1fr;
+  }
+
+  .daily-date-toggle-group,
+  .flight-toggle-group {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    padding-bottom: 4px;
+  }
+
+  .daily-date-toggle,
+  .toggle-check {
+    flex: 0 0 auto;
+  }
+
+  .daily-overlay-legend {
+    align-items: start;
+    flex-direction: column;
+    gap: 5px;
+  }
+
+  .pattern-summary-strip {
+    gap: 8px;
+  }
+
+  .pattern-summary-card {
+    padding: 10px;
+    border-radius: 12px;
+  }
+
+  .pattern-summary-card strong {
+    font-size: 0.98rem;
+  }
+
+  .availability-legend {
+    gap: 7px;
+  }
+
+  .heatmap-table thead th:first-child,
+  .heatmap-table tbody th {
+    position: sticky;
+    left: 0;
+    z-index: 2;
+    box-shadow: 8px 0 12px rgba(246, 242, 234, 0.88);
+  }
+
+  .heatmap-table thead th:first-child {
+    background: var(--surface-strong);
+  }
+
+  .heatmap-table tbody th {
+    background: #f4ecdf;
+  }
+
+  .weekday-pattern-grid,
+  .holiday-pattern-grid {
+    gap: 10px;
+    grid-template-columns: 1fr;
+  }
+
+  .weekday-detail-card {
+    padding: 12px;
+    border-radius: 12px;
   }
 
   .weekday-detail-head {
     flex-direction: column;
+    gap: 8px;
+    margin-bottom: 10px;
+  }
+
+  .threshold-list div,
+  .quote-breakdown li {
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .footer-band {
+    padding-bottom: 28px;
+  }
+
+  .fee-panel {
+    margin-bottom: 0;
   }
 }
 
 @media (max-width: 560px) {
-  .history-summary,
-  .detail-ribbon,
   .pattern-summary-strip {
     grid-template-columns: 1fr;
+  }
+
+  .page-shell {
+    width: min(100% - 20px, 720px);
+  }
+
+  .page-header {
+    gap: 8px;
+  }
+
+  .control-band {
+    padding: 12px;
+  }
+
+  .button {
+    padding: 0 12px;
+  }
+
+  .history-summary,
+  .detail-ribbon {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .history-tooltip {
@@ -1267,6 +1614,26 @@ select {
   }
 
   .hour-chip-grid {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 6px;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .hour-chip {
+    padding: 8px 6px;
+  }
+
+  .hour-chip strong {
+    font-size: 0.78rem;
+  }
+}
+
+@media (max-width: 380px) {
+  .history-summary,
+  .detail-ribbon {
+    grid-template-columns: 1fr;
+  }
+
+  .action-stack {
+    grid-template-columns: 1fr;
   }
 }

@@ -383,11 +383,27 @@ export function DashboardApp({
       />
       {airports.length > 0 ? (
         <div className="page-shell footer-band">
-          <FeeCalculator
-            airports={airports}
-            initialAirportCode={selectedAirportCode || airports[0].code}
-            onCalculate={api.calculateFee}
-          />
+          {isMobile ? (
+            <details className="mobile-disclosure">
+              <summary>
+                <span>주차요금 계산</span>
+                <small>예상 이용 시간으로 요금 보기</small>
+              </summary>
+              <div className="mobile-disclosure-body">
+                <FeeCalculator
+                  airports={airports}
+                  initialAirportCode={selectedAirportCode || airports[0].code}
+                  onCalculate={api.calculateFee}
+                />
+              </div>
+            </details>
+          ) : (
+            <FeeCalculator
+              airports={airports}
+              initialAirportCode={selectedAirportCode || airports[0].code}
+              onCalculate={api.calculateFee}
+            />
+          )}
         </div>
       ) : null}
     </>
