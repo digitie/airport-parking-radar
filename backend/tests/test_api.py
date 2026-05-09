@@ -122,6 +122,11 @@ def test_current_and_analytics(client) -> None:
         "/parking/analytics/timeseries",
         params={"airport_code": "GMP", "days": 7, "interval_minutes": 30},
     )
+    holiday_summary = client.get(
+        "/holidays/summary",
+        params={"start_date": "2026-05-01", "end_date": "2026-05-31"},
+    )
+    holiday_patterns = client.get("/parking/analytics/holiday-patterns", params={"airport_code": "GMP"})
     thresholds = client.get("/parking/analytics/threshold-events", params={"airport_code": "GMP"})
     threshold_insights = client.get(
         "/parking/analytics/threshold-insights",
@@ -131,6 +136,8 @@ def test_current_and_analytics(client) -> None:
     assert weekday.status_code == 200
     assert weekday_hour.status_code == 200
     assert timeseries.status_code == 200
+    assert holiday_summary.status_code == 200
+    assert holiday_patterns.status_code == 200
     assert thresholds.status_code == 200
     assert threshold_insights.status_code == 200
     assert hourly.json()
@@ -144,12 +151,26 @@ def test_current_and_analytics(client) -> None:
     assert_is_utc_iso(timeseries_payload["generated_at"])
     assert timeseries_payload["days"] == 7
     assert timeseries_payload["interval_minutes"] == 30
-    assert len(timeseries_payload["items"]) == 336
+    assert timeseries_payload["future_hours"] == 4
+    assert len(timeseries_payload["items"]) == 344
     assert max(point["lot_observations"] for point in timeseries_payload["items"]) >= 1
     assert_is_utc_iso(timeseries_payload["items"][0]["bucket_at"])
-    assert timeseries_payload["items"][-1]["available_spaces"] == sum(
+    latest_observed_point = next(
+        point for point in reversed(timeseries_payload["items"]) if point["lot_observations"] > 0
+    )
+    assert latest_observed_point["available_spaces"] == sum(
         item["available_spaces"] for item in current_payload["items"]
     )
+    assert timeseries_payload["items"][-1]["lot_observations"] == 0
+
+    holiday_summary_payload = holiday_summary.json()
+    assert holiday_summary_payload["status"] == "sample"
+    assert "5/5 (화) 어린이날" in holiday_summary_payload["sentence"]
+    assert any(item["name"] == "부처님오신 날" for item in holiday_summary_payload["items"])
+
+    holiday_patterns_payload = holiday_patterns.json()
+    assert holiday_patterns_payload["items"]
+    assert len(holiday_patterns_payload["items"][0]["hourly_buckets"]) == 24
 
     threshold_payload = thresholds.json()
     assert threshold_payload

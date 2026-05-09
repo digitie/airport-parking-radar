@@ -114,6 +114,48 @@ def test_parse_kac_flight_detail_json_normalizes_odcloud_response() -> None:
     assert items[1]["destination_airport"] == "김포"
 
 
+def test_parse_kac_flight_detail_json_groups_codeshare_markers() -> None:
+    body = """{
+      "data": [
+        {
+          "AIRLINE_KOREAN": "대한항공",
+          "AIRPORT": "GMP",
+          "AIR_FLN": "KE123",
+          "ARRIVED_KOR": "제주",
+          "BOARDING_KOR": "김포",
+          "ETD": "0840",
+          "FLIGHT_DATE": "20260509",
+          "IO": "O",
+          "LINE": "국내",
+          "RMK_KOR": "출발",
+          "STD": "0830"
+        },
+        {
+          "AIRLINE_KOREAN": "델타항공",
+          "AIRPORT": "GMP",
+          "AIR_FLN": "DL9123",
+          "ARRIVED_KOR": "제주",
+          "BOARDING_KOR": "김포",
+          "ETD": "0840",
+          "FLIGHT_DATE": "20260509",
+          "IO": "O",
+          "LINE": "국내",
+          "RMK_KOR": "출발",
+          "STD": "0830"
+        }
+      ]
+    }"""
+
+    items, error_message = parse_kac_flight_detail_json(body, "GMP", date(2026, 5, 9))
+
+    assert error_message is None
+    assert len(items) == 1
+    assert items[0]["flight_number"] == "DL9123 / KE123"
+    assert items[0]["codeshare_flight_numbers"] == ["DL9123", "KE123"]
+    assert items[0]["origin_airport"] == "김포"
+    assert items[0]["destination_airport"] == "제주"
+
+
 def test_parse_incheon_flight_status_json_normalizes_departures_and_arrivals() -> None:
     body = """{
       "departures": {

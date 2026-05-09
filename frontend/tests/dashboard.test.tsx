@@ -6,6 +6,8 @@ import type {
   Airport,
   CollectorStatusResponse,
   FlightStatusResponse,
+  HolidayPatternResponse,
+  HolidaySummaryResponse,
   ParkingStatus,
   ParkingTimeSeriesResponse,
   ThresholdEvent,
@@ -126,6 +128,45 @@ const weekdayHourlyPatterns: WeekdayHourlyPattern[] = [
   },
 ];
 
+const holidaySummary: HolidaySummaryResponse = {
+  generated_at: "2026-05-09T00:00:00.000Z",
+  start_date: "2026-04-27",
+  end_date: "2026-05-17",
+  source: "sample_holiday_info",
+  status: "sample",
+  error_message: null,
+  sentence: "5/5 (화) 어린이날 입니다.",
+  items: [{ local_date: "2026-04-25", name: "테스트 공휴일", weekday: 5, weekday_name: "토" }],
+};
+
+const holidayPatterns: HolidayPatternResponse = {
+  generated_at: "2026-05-09T00:00:00.000Z",
+  airport_code: "GMP",
+  parking_lot_id: 1,
+  source: "sample_holiday_info",
+  status: "sample",
+  error_message: null,
+  items: [
+    {
+      local_date: "2026-04-25",
+      name: "테스트 공휴일",
+      weekday: 5,
+      weekday_name: "토",
+      average_available_spaces: 35,
+      min_available_spaces: 8,
+      max_available_spaces: 70,
+      observations: 24,
+      hourly_buckets: Array.from({ length: 24 }, (_, hour) => ({
+        hour,
+        average_available_spaces: hour === 9 ? 12 : 35 + hour,
+        min_available_spaces: hour === 9 ? 8 : 20,
+        max_available_spaces: hour === 9 ? 30 : 70,
+        observations: 1,
+      })),
+    },
+  ],
+};
+
 const timeSeries: ParkingTimeSeriesResponse = {
   generated_at: "2026-04-25T00:30:00.000Z",
   airport_code: "GMP",
@@ -211,6 +252,8 @@ describe("DashboardScreen", () => {
         thresholdEvents={thresholdEvents}
         thresholdInsights={thresholdInsights}
         weekdayHourlyPatterns={weekdayHourlyPatterns}
+        holidaySummary={holidaySummary}
+        holidayPatterns={holidayPatterns}
         timeSeries={timeSeries}
         flightStatus={flightStatus}
         collectorStatus={collectorStatus}
@@ -232,6 +275,8 @@ describe("DashboardScreen", () => {
     expect(screen.getByTestId("history-chart")).toBeInTheDocument();
     expect(screen.getByTestId("weekday-hour-heatmap")).toBeInTheDocument();
     expect(screen.getByTestId("weekday-pattern-grid")).toBeInTheDocument();
+    expect(screen.getByTestId("holiday-pattern-heatmap")).toBeInTheDocument();
+    expect(screen.getByTestId("holiday-pattern-grid")).toBeInTheDocument();
     expect(screen.getByTestId("threshold-weekday-grid")).toBeInTheDocument();
     expect(screen.getByTestId("threshold-history-scroll")).toBeInTheDocument();
     expect(screen.getByTestId("weekday-hour-cell-0-9")).toHaveTextContent("18");
@@ -240,6 +285,7 @@ describe("DashboardScreen", () => {
     expect(screen.getByText("수집기 마지막 동기화: 04.25 09:30 KST")).toBeInTheDocument();
     expect(screen.getByText("평균으로 가장 빠듯")).toBeInTheDocument();
     expect(screen.getByText("색상 범례")).toBeInTheDocument();
+    expect(screen.getByText("5/5 (화) 어린이날 입니다.")).toBeInTheDocument();
     expect(screen.queryByText("출발 전에 보는 공항 주차 레이더")).not.toBeInTheDocument();
     expect(screen.queryByText("최근 수집 시각: 04.25 09:30 KST")).not.toBeInTheDocument();
   });
@@ -257,6 +303,8 @@ describe("DashboardScreen", () => {
         thresholdEvents={thresholdEvents}
         thresholdInsights={thresholdInsights}
         weekdayHourlyPatterns={weekdayHourlyPatterns}
+        holidaySummary={holidaySummary}
+        holidayPatterns={holidayPatterns}
         timeSeries={timeSeries}
         flightStatus={flightStatus}
         collectorStatus={collectorStatus}
@@ -294,6 +342,8 @@ describe("DashboardScreen", () => {
         thresholdEvents={thresholdEvents}
         thresholdInsights={thresholdInsights}
         weekdayHourlyPatterns={weekdayHourlyPatterns}
+        holidaySummary={holidaySummary}
+        holidayPatterns={holidayPatterns}
         timeSeries={timeSeries}
         flightStatus={flightStatus}
         collectorStatus={collectorStatus}
@@ -327,6 +377,8 @@ describe("DashboardScreen", () => {
         thresholdEvents={thresholdEvents}
         thresholdInsights={thresholdInsights}
         weekdayHourlyPatterns={weekdayHourlyPatterns}
+        holidaySummary={holidaySummary}
+        holidayPatterns={holidayPatterns}
         timeSeries={timeSeries}
         flightStatus={flightStatus}
         collectorStatus={collectorStatus}

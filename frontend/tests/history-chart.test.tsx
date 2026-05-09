@@ -2,7 +2,7 @@ import { fireEvent, render, screen, within } from "@testing-library/react";
 
 import { HistoryChart } from "@/components/history-chart";
 import { formatDateTimeWithZone } from "@/lib/format";
-import type { FlightStatusResponse, ParkingTimeSeriesResponse } from "@/lib/types";
+import type { FlightStatusResponse, HolidayItemSummary, ParkingTimeSeriesResponse } from "@/lib/types";
 
 function buildSeries(): ParkingTimeSeriesResponse {
   const start = new Date("2026-04-23T15:00:00.000Z").getTime();
@@ -62,10 +62,19 @@ function buildFlightStatus(): FlightStatusResponse {
   };
 }
 
+function buildHolidays(): HolidayItemSummary[] {
+  return [{ local_date: "2026-04-24", name: "테스트 공휴일", weekday: 4, weekday_name: "금" }];
+}
+
 describe("HistoryChart", () => {
   test("renders 6 hour axis labels", () => {
     const { container } = render(
-      <HistoryChart flightStatus={buildFlightStatus()} series={buildSeries()} scopeLabel={"P1 \uC8FC\uCC28\uC7A5"} />
+      <HistoryChart
+        flightStatus={buildFlightStatus()}
+        holidays={buildHolidays()}
+        series={buildSeries()}
+        scopeLabel={"P1 \uC8FC\uCC28\uC7A5"}
+      />
     );
 
     const axisLabels = screen.getAllByTestId("history-axis-label");
@@ -91,7 +100,14 @@ describe("HistoryChart", () => {
   test("shows tooltip with time and available spaces on hover", () => {
     const series = buildSeries();
 
-    render(<HistoryChart flightStatus={buildFlightStatus()} series={series} scopeLabel={"P1 \uC8FC\uCC28\uC7A5"} />);
+    render(
+      <HistoryChart
+        flightStatus={buildFlightStatus()}
+        holidays={buildHolidays()}
+        series={series}
+        scopeLabel={"P1 \uC8FC\uCC28\uC7A5"}
+      />
+    );
 
     const interactionSurface = screen.getByTestId("history-chart-surface");
     Object.defineProperty(interactionSurface, "getBoundingClientRect", {
@@ -118,11 +134,36 @@ describe("HistoryChart", () => {
   });
 
   test("renders flight markers and flight details inside the chart area", () => {
-    render(<HistoryChart flightStatus={buildFlightStatus()} series={buildSeries()} scopeLabel={"P1 \uC8FC\uCC28\uC7A5"} />);
+    render(
+      <HistoryChart
+        flightStatus={buildFlightStatus()}
+        holidays={buildHolidays()}
+        series={buildSeries()}
+        scopeLabel={"P1 \uC8FC\uCC28\uC7A5"}
+      />
+    );
 
     expect(screen.getAllByTestId("flight-marker")).toHaveLength(2);
+    expect(screen.getAllByTestId("holiday-band")).toHaveLength(1);
     expect(screen.getByTestId("flight-marker-summary")).toHaveTextContent("출발 1편 / 도착 1편");
     expect(screen.getByTestId("flight-marker-list")).toHaveTextContent("KE1101");
     expect(screen.getByTestId("flight-marker-list")).toHaveTextContent("제주 -> 김포");
+  });
+
+  test("highlights a flight marker when the marker chip is clicked", () => {
+    render(
+      <HistoryChart
+        flightStatus={buildFlightStatus()}
+        holidays={buildHolidays()}
+        series={buildSeries()}
+        scopeLabel={"P1 \uC8FC\uCC28\uC7A5"}
+      />
+    );
+
+    const markerButton = screen.getByText("09:40 KE1101").closest("button");
+    expect(markerButton).not.toBeNull();
+    fireEvent.click(markerButton!);
+
+    expect(screen.getByTestId("flight-highlight-label")).toHaveTextContent("KE1101");
   });
 });

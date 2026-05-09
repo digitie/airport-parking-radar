@@ -9,13 +9,17 @@
 - 세부 주차장 단위 조회
   - 예: 김해 `P1 / P2 / P3`
 - 최근 7일 30분 단위 시계열
+- 현재 시각 이후 4시간까지 같은 X축을 확장해 비행편 마커 표시
 - 시계열 차트 hover / touch 툴팁
 - 시계열 X축 6시간 단위 라벨
 - 시계열 보간 없는 계단형 표시
 - 시계열 기본 커서가 최신 값에 고정되고 오른쪽 끝부터 바로 표시
+- 공휴일 날짜 배경 강조와 그래프 상단 공휴일명 표시
 - 선택 공항 비행편 출도착 시간 마커
   - 시간, 편명, 출발공항, 도착공항 표시
+- 같은 시간/출발지/도착지 공동운항편 묶음 표시
 - 요일 x 시간 기준 평균 잔여 주차면 히트맵
+- 최근 8개 공휴일 기준 시간대별 잔여 주차면 패턴
 - 평균으로 가장 빠듯한 시간 / 가장 여유 있는 시간 요약
 - 요일별 시간대 상세 패턴 카드
 - 요일별 임계 달성 시간 / 날짜별 임계 달성 시간 히스토리
@@ -50,9 +54,12 @@
   [https://www.data.go.kr/data/15113771/openapi.do](https://www.data.go.kr/data/15113771/openapi.do)
 - 인천국제공항공사 여객기 운항 정보
   [https://www.data.go.kr/data/15112968/openapi.do](https://www.data.go.kr/data/15112968/openapi.do)
+- 한국천문연구원 특일 정보
+  [https://www.data.go.kr/data/15012690/openapi.do](https://www.data.go.kr/data/15012690/openapi.do)
 
 현재 실시간 기본 수집원은 `15056803`이며, 인천 주차/요금 API는 별도 플래그로 분리되어 있다.
 비행편 정보는 주차 현황 수집과 분리된 조회용 API이며, 시계열 차트의 마커 표시 용도로만 사용한다.
+공휴일 정보는 주차 현황 수집과 분리된 조회용 API이며, 차트 배경 강조와 공휴일 패턴 분석에 사용한다.
 
 ## 빠른 시작
 
@@ -116,6 +123,7 @@ USE_SAMPLE_CLIENT_WHEN_NO_KEY=false
 COLLECT_INTERVAL_SECONDS=600
 MANUAL_COLLECT_MIN_INTERVAL_SECONDS=600
 UPSTREAM_RATE_LIMIT_BACKOFF_SECONDS=3600
+HOLIDAY_CACHE_SECONDS=86400
 ENABLE_INCHEON_COLLECTION=true
 ENABLE_INCHEON_FEE_COLLECTION=true
 AIRPORT_CODES_CSV=CJJ,CJU,GMP,HIN,ICN,KUV,KWJ,MWX,PUS,RSU,TAE,USN,WJU,YNY
@@ -186,7 +194,12 @@ curl http://localhost:8000/admin/collector-status
   - 임계치 이벤트
 - `전체 주차장`이면 공항 내 활성 주차장을 합산해서 보여준다.
 - 시계열의 마지막 값은 항상 화면 상단 `지금 주차 여유`와 같은 기준으로 맞춘다.
+- 시계열 차트의 주차선은 실제 관측 구간까지만 그리고, X축은 현재 시각 이후 4시간까지 확장한다.
 - 시계열 차트의 비행편 마커는 선택 공항 기준 출도착편을 X축 시간 위치에 표시한다.
+- 같은 출도착 시간, 출발공항, 도착공항을 가진 공동운항편은 하나의 마커로 묶는다.
+- 지난주/이번주/다음주 공휴일은 공항 이름 옆에 문장으로 표시한다.
+- 최근 7일 시계열 안에 공휴일이 있으면 해당 날짜의 배경과 공휴일명을 차트에 표시한다.
+- 최근 8개 공휴일은 날짜별/시간대별 패턴으로 별도 표시한다.
 - 비행편 API 권한이 없거나 응답 오류가 나면 주차장 화면은 유지하고, 비행편 마커 영역에 오류 상태만 표시한다.
 
 ## 테스트

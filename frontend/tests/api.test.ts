@@ -48,6 +48,7 @@ describe("api client", () => {
     await client.getThresholdEvents("GMP", 12);
     await client.getThresholdInsights("GMP", { parkingLotId: 12, days: 21, intervalMinutes: 10 });
     await client.getTimeSeries("GMP", { parkingLotId: 12, days: 7, intervalMinutes: 30 });
+    await client.getHolidayPatterns("GMP", { parkingLotId: 12, limit: 8 });
 
     expect(fetchMock).toHaveBeenNthCalledWith(
       1,
@@ -76,7 +77,37 @@ describe("api client", () => {
     );
     expect(fetchMock).toHaveBeenNthCalledWith(
       6,
-      "http://localhost:8000/parking/analytics/timeseries?airport_code=GMP&parking_lot_id=12&days=7&interval_minutes=30",
+      "http://localhost:8000/parking/analytics/timeseries?airport_code=GMP&parking_lot_id=12&days=7&interval_minutes=30&future_hours=4",
+      expect.objectContaining({ cache: "no-store" })
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      7,
+      "http://localhost:8000/parking/analytics/holiday-patterns?airport_code=GMP&parking_lot_id=12&limit=8",
+      expect.objectContaining({ cache: "no-store" })
+    );
+  });
+
+  test("requests the holiday summary endpoint", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        generated_at: "2026-05-09T00:00:00.000Z",
+        start_date: "2026-04-27",
+        end_date: "2026-05-17",
+        source: "sample_holiday_info",
+        status: "sample",
+        error_message: null,
+        sentence: "5/5 (화) 어린이날 입니다.",
+        items: [],
+      }),
+    });
+
+    vi.stubGlobal("fetch", fetchMock);
+    const client = buildApiClient("http://localhost:8000");
+    await client.getHolidaySummary();
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "http://localhost:8000/holidays/summary",
       expect.objectContaining({ cache: "no-store" })
     );
   });

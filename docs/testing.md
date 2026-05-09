@@ -50,8 +50,11 @@ npm run build
 주요 확인 항목:
 
 - `timeseries` 7일 x 30분 버킷 계산
+- `timeseries` 현재 이후 4시간 미래 축과 미래 구간 `lot_observations=0` 처리
 - `threshold-events` 임계치 진입 / 회복 계산
 - `by-weekday-hour` 요일 x 시간 상세 집계
+- `holiday-patterns` 최근 공휴일 날짜별 시간대 집계
+- `holidays/summary` 공휴일 문장과 기간 조회
 - `admin/collector-status` 응답
 - `sample` / `live` 클라이언트 선택 규칙
 - 인천 주차 응답의 실시간 `datetm` 파싱
@@ -77,8 +80,11 @@ docker compose run --rm --no-deps backend pytest -q
 - 마지막으로 본 공항 / 주차장 복원
 - 시계열 툴팁
 - 시계열 계단형 라인과 X축 라벨 레이아웃
+- 시계열 공휴일 배경과 공휴일명 표시
 - 비행편 마커와 편명/출도착 정보 표시
+- 비행편 마커 hover / click 강조
 - 요일 x 시간 히트맵
+- 공휴일 시간대 패턴 히트맵
 - 요일별 시간대 상세 카드
 - 요일별 임계 달성 시간 / 날짜별 임계 달성 시간
 - 요금 계산기
@@ -179,6 +185,10 @@ in-app browser 또는 브라우저에서 다음을 확인한다.
 - 시계열 X축 라벨이 겹치지 않고 6시간 단위로 표시되는지 확인
 - 비행편 마커가 X축 시간 위치에 표시되고, 편명과 출발/도착 공항 정보가 보이는지 확인
 - 인천공항을 선택했을 때 `15112968` 기준 도착/출발편이 같은 차트에 표시되는지 확인
+- 같은 시간/출발지/도착지의 공동운항편이 하나의 마커로 묶이는지 확인
+- 최근 7일 범위 안 공휴일 날짜의 배경과 공휴일명이 표시되는지 확인
+- 공항 이름 옆에 지난주/이번주/다음주 공휴일 문장이 표시되는지 확인
+- 공휴일 패턴 패널에 최근 8개 공휴일이 날짜별로 표시되는지 확인
 - 6시간 단위 X축 라벨 표시
 - 요일 x 시간 히트맵 표시
 - 요일별 시간대 상세 카드 표시
@@ -222,3 +232,11 @@ in-app browser 또는 브라우저에서 다음을 확인한다.
 - 2차 최종 기준은 `WSL2` 안에서 실행한 Docker 테스트 결과다.
 - ODROID 배포는 1차/2차 테스트가 모두 통과한 뒤 진행한다.
 - Windows PowerShell은 배포, 압축, 원격 실행 보조 용도로 사용할 수 있지만 테스트 기준 환경으로 보지 않는다.
+
+## WSL Node 런타임 주의
+
+- WSL 1차 프론트 테스트는 WSL 내부에 설치된 `node`와 `npm`으로 실행해야 한다.
+- WSL의 `PATH`가 Windows 쪽 `C:\Program Files\nodejs\npm`만 가리키고 WSL 내부 `node`가 없으면 `WSL 1 is not supported. Could not determine Node.js install directory` 오류가 난다.
+- 이 오류는 프론트 코드 실패가 아니라 WSL 런타임 구성 문제다.
+- 이 경우 WSL 내부 Node 설치를 보완한 뒤 1차 테스트를 다시 실행한다.
+- 당장 검증을 이어가야 할 때는 WSL Docker의 `docker compose build frontend`와 `docker compose run --rm --no-deps frontend npm run test -- --run`으로 2차 검증을 수행하고, 1차 프론트 테스트 미실행 사유를 작업 기록에 남긴다.

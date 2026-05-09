@@ -25,6 +25,7 @@ class Settings(BaseSettings):
     data_go_kr_service_key: str | None = None
     enable_flight_status_markers: bool = True
     flight_status_cache_seconds: int = 300
+    holiday_cache_seconds: int = 86400
     enable_incheon_collection: bool = True
     enable_incheon_fee_collection: bool = False
     enable_fee_collection: bool = False

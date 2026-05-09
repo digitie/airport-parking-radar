@@ -6,7 +6,8 @@ import secrets
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from contextlib import suppress
-from datetime import date, timedelta
+from datetime import date, datetime, time, timedelta
+from zoneinfo import ZoneInfo
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -27,6 +28,10 @@ from app.schemas import (
     FeeCalculationResponse,
     FlightStatusResponse,
     HealthResponse,
+    HolidayItemSummary,
+    HolidayPatternItem,
+    HolidayPatternResponse,
+    HolidaySummaryResponse,
     HourlyBucket,
     ParkingCurrentResponse,
     ParkingHistoryResponse,
@@ -42,6 +47,7 @@ from app.schemas import (
     WeekdayHourlyPattern,
 )
 from app.services.analytics import (
+    build_holiday_patterns,
     build_threshold_insights,
     build_hourly_buckets,
     build_time_series,
@@ -53,6 +59,7 @@ from app.services.analytics import (
 from app.services.collection import CollectionService
 from app.services.fee_calculator import calculate_total_fee
 from app.services.flight_status import FlightStatusService
+from app.services.holidays import HolidayService, WEEKDAY_LABELS as HOLIDAY_WEEKDAY_LABELS, collapse_holidays_by_date, format_holiday_sentence
 from app.services.sample_data import seed_sample_database
 
 logger = logging.getLogger(__name__)
@@ -70,6 +77,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         app.state.settings = resolved_settings
         app.state.collection_service = CollectionService(resolved_settings)
         app.state.flight_status_service = FlightStatusService(resolved_settings)
+        app.state.holiday_service = HolidayService(resolved_settings)
         app.state.scheduler_task = None
 
         if resolved_settings.seed_sample_data and app.state.collection_service.client_mode == "sample":
@@ -141,6 +149,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     def get_flight_status_service(request: Request) -> FlightStatusService:
         return request.app.state.flight_status_service
+
+    def get_holiday_service(request: Request) -> HolidayService:
+        return request.app.state.holiday_service
 
     def require_admin_token(
         authorization: str | None = Header(default=None),
@@ -301,6 +312,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         parking_lot_id: int | None = Query(default=None),
         days: int = Query(default=7, ge=1, le=30),
         interval_minutes: int = Query(default=30, ge=10, le=60),
+        future_hours: int = Query(default=4, ge=0, le=12),
         session: AsyncSession = Depends(get_db),
     ) -> ParkingTimeSeriesResponse:
         snapshots = await _load_snapshots(
@@ -316,7 +328,83 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             parking_lot_id=parking_lot_id,
             days=days,
             interval_minutes=interval_minutes,
-            items=[TimeSeriesPoint(**point) for point in build_time_series(snapshots, days=days, interval_minutes=interval_minutes)],
+            future_hours=future_hours,
+            items=[
+                TimeSeriesPoint(**point)
+                for point in build_time_series(
+                    snapshots,
+                    days=days,
+                    interval_minutes=interval_minutes,
+                    future_hours=future_hours,
+                    tz_name=resolved_settings.app_timezone,
+                )
+            ],
+        )
+
+    @app.get("/holidays/summary", response_model=HolidaySummaryResponse)
+    async def holiday_summary(
+        start_date: str | None = Query(default=None),
+        end_date: str | None = Query(default=None),
+        service: HolidayService = Depends(get_holiday_service),
+    ) -> HolidaySummaryResponse:
+        today = to_seoul(now_utc()).date()
+        week_start = today - timedelta(days=today.weekday())
+        resolved_start = _parse_local_date_query(start_date, "start_date") if start_date else week_start - timedelta(days=7)
+        resolved_end = _parse_local_date_query(end_date, "end_date") if end_date else week_start + timedelta(days=20)
+        if resolved_end < resolved_start:
+            raise HTTPException(status_code=400, detail="end_date는 start_date보다 빠를 수 없습니다.")
+
+        result = await service.get_holidays(resolved_start, resolved_end)
+        collapsed_items = collapse_holidays_by_date(result.items)
+        summary_items = [_build_holiday_summary_item(item.local_date, item.name) for item in collapsed_items]
+        return HolidaySummaryResponse(
+            generated_at=now_utc(),
+            start_date=resolved_start.isoformat(),
+            end_date=resolved_end.isoformat(),
+            source=result.source,
+            status=result.status,
+            error_message=result.error_message,
+            sentence=format_holiday_sentence(collapsed_items),
+            items=summary_items,
+        )
+
+    @app.get("/parking/analytics/holiday-patterns", response_model=HolidayPatternResponse)
+    async def holiday_patterns(
+        airport_code: str | None = Query(default=None),
+        parking_lot_id: int | None = Query(default=None),
+        limit: int = Query(default=8, ge=1, le=16),
+        session: AsyncSession = Depends(get_db),
+        service: HolidayService = Depends(get_holiday_service),
+    ) -> HolidayPatternResponse:
+        today = to_seoul(now_utc()).date()
+        holiday_result = await service.get_recent_holidays(today, limit=limit)
+        holiday_items = holiday_result.items
+        snapshots: list[ParkingSnapshot] = []
+        if holiday_items:
+            local_dates = [item.local_date for item in holiday_items]
+            snapshots = await _load_snapshots_between_local_dates(
+                session,
+                airport_code,
+                parking_lot_id,
+                min(local_dates),
+                max(local_dates),
+            )
+
+        return HolidayPatternResponse(
+            generated_at=now_utc(),
+            airport_code=airport_code.upper() if airport_code else None,
+            parking_lot_id=parking_lot_id,
+            source=holiday_result.source,
+            status=holiday_result.status,
+            error_message=holiday_result.error_message,
+            items=[
+                HolidayPatternItem(**pattern)
+                for pattern in build_holiday_patterns(
+                    snapshots,
+                    [(item.local_date, item.name) for item in holiday_items],
+                    tz_name=resolved_settings.app_timezone,
+                )
+            ],
         )
 
     @app.get("/flights/status", response_model=FlightStatusResponse)
@@ -538,6 +626,31 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
         return (await session.execute(query)).scalars().all()
 
+    async def _load_snapshots_between_local_dates(
+        session: AsyncSession,
+        airport_code: str | None,
+        parking_lot_id: int | None,
+        start_date: date,
+        end_date: date,
+    ) -> list[ParkingSnapshot]:
+        tz = ZoneInfo(resolved_settings.app_timezone)
+        start_at = datetime.combine(start_date, time.min, tzinfo=tz).astimezone(ZoneInfo("UTC"))
+        end_at = (datetime.combine(end_date, time.min, tzinfo=tz) + timedelta(days=1)).astimezone(ZoneInfo("UTC"))
+        query = select(ParkingSnapshot).where(
+            ParkingSnapshot.observed_at >= start_at,
+            ParkingSnapshot.observed_at < end_at,
+        )
+
+        if parking_lot_id:
+            query = query.where(ParkingSnapshot.parking_lot_id == parking_lot_id)
+        elif airport_code:
+            airport = await session.scalar(select(Airport).where(Airport.code == airport_code.upper()))
+            if airport is None:
+                return []
+            query = query.where(ParkingSnapshot.airport_id == airport.id)
+
+        return (await session.execute(query)).scalars().all()
+
     async def _load_snapshot_rows(
         session: AsyncSession,
         airport_code: str | None,
@@ -558,6 +671,23 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         return (await session.execute(query)).all()
 
     return app
+
+
+def _parse_local_date_query(value: str, field_name: str) -> date:
+    try:
+        return date.fromisoformat(value)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=f"{field_name}는 YYYY-MM-DD 형식이어야 합니다.") from exc
+
+
+def _build_holiday_summary_item(local_date: date, name: str) -> HolidayItemSummary:
+    weekday = local_date.weekday()
+    return HolidayItemSummary(
+        local_date=local_date.isoformat(),
+        name=name,
+        weekday=weekday,
+        weekday_name=HOLIDAY_WEEKDAY_LABELS[weekday],
+    )
 
 
 async def _run_scheduler(app: FastAPI) -> None:

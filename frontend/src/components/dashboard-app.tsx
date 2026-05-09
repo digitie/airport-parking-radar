@@ -14,6 +14,8 @@ import type {
   Airport,
   CollectorStatusResponse,
   FlightStatusResponse,
+  HolidayPatternResponse,
+  HolidaySummaryResponse,
   ParkingStatus,
   ParkingTimeSeriesResponse,
   ThresholdEvent,
@@ -37,6 +39,31 @@ function buildFlightStatusError(airportCode: string, caughtError: unknown): Flig
     source: "client",
     status: "client_error",
     error_message: caughtError instanceof Error ? caughtError.message : "비행편 정보를 불러오지 못했습니다.",
+    items: [],
+  };
+}
+
+function buildHolidaySummaryError(caughtError: unknown): HolidaySummaryResponse {
+  return {
+    generated_at: new Date().toISOString(),
+    start_date: "",
+    end_date: "",
+    source: "client",
+    status: "client_error",
+    error_message: caughtError instanceof Error ? caughtError.message : "공휴일 정보를 불러오지 못했습니다.",
+    sentence: "공휴일 정보를 불러오지 못했습니다.",
+    items: [],
+  };
+}
+
+function buildHolidayPatternError(airportCode: string, parkingLotId: number | null, caughtError: unknown): HolidayPatternResponse {
+  return {
+    generated_at: new Date().toISOString(),
+    airport_code: airportCode,
+    parking_lot_id: parkingLotId,
+    source: "client",
+    status: "client_error",
+    error_message: caughtError instanceof Error ? caughtError.message : "공휴일 패턴을 불러오지 못했습니다.",
     items: [],
   };
 }
@@ -109,6 +136,8 @@ export function DashboardApp({
   const [thresholdEvents, setThresholdEvents] = useState<ThresholdEvent[]>([]);
   const [thresholdInsights, setThresholdInsights] = useState<ThresholdInsightsResponse | null>(null);
   const [weekdayHourlyPatterns, setWeekdayHourlyPatterns] = useState<WeekdayHourlyPattern[]>([]);
+  const [holidaySummary, setHolidaySummary] = useState<HolidaySummaryResponse | null>(null);
+  const [holidayPatterns, setHolidayPatterns] = useState<HolidayPatternResponse | null>(null);
   const [timeSeries, setTimeSeries] = useState<ParkingTimeSeriesResponse | null>(null);
   const [flightStatus, setFlightStatus] = useState<FlightStatusResponse | null>(null);
   const [collectorStatus, setCollectorStatus] = useState<CollectorStatusResponse | null>(null);
@@ -144,11 +173,17 @@ export function DashboardApp({
         const flightStatusRequest = api
           .getFlightStatus(airportCode)
           .catch((caughtError) => buildFlightStatusError(airportCode, caughtError));
-        const [current, thresholds, thresholdDetail, weekdayHourly, timeseries, flights, status] = await Promise.all([
+        const holidaySummaryRequest = api.getHolidaySummary().catch(buildHolidaySummaryError);
+        const holidayPatternsRequest = api
+          .getHolidayPatterns(airportCode, { parkingLotId })
+          .catch((caughtError) => buildHolidayPatternError(airportCode, parkingLotId, caughtError));
+        const [current, thresholds, thresholdDetail, weekdayHourly, holidays, holidayPatternDetail, timeseries, flights, status] = await Promise.all([
           api.getCurrent(airportCode),
           api.getThresholdEvents(airportCode, parkingLotId),
           api.getThresholdInsights(airportCode, { parkingLotId }),
           api.getByWeekdayHour(airportCode, parkingLotId),
+          holidaySummaryRequest,
+          holidayPatternsRequest,
           api.getTimeSeries(airportCode, { parkingLotId }),
           flightStatusRequest,
           api.getCollectorStatus(),
@@ -160,6 +195,8 @@ export function DashboardApp({
         setThresholdEvents(thresholds);
         setThresholdInsights(thresholdDetail);
         setWeekdayHourlyPatterns(weekdayHourly);
+        setHolidaySummary(holidays);
+        setHolidayPatterns(holidayPatternDetail);
         setTimeSeries(timeseries);
         setFlightStatus(flights);
         setCollectorStatus(status);
@@ -337,6 +374,8 @@ export function DashboardApp({
         thresholdEvents={thresholdEvents}
         thresholdInsights={thresholdInsights}
         weekdayHourlyPatterns={weekdayHourlyPatterns}
+        holidaySummary={holidaySummary}
+        holidayPatterns={holidayPatterns}
         timeSeries={timeSeries}
         flightStatus={flightStatus}
         collectorStatus={collectorStatus}

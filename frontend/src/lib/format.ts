@@ -22,8 +22,9 @@ export function formatDateTimeWithZone(value: string): string {
   return `${formatDateTime(value)} KST`;
 }
 
-export function getSeoulDateParts(value: string): { month: number; day: number; hour: number; minute: number } {
+export function getSeoulDateParts(value: string): { year: number; month: number; day: number; hour: number; minute: number } {
   const formatter = new Intl.DateTimeFormat("en-CA", {
+    year: "numeric",
     month: "numeric",
     day: "numeric",
     hour: "2-digit",
@@ -35,11 +36,17 @@ export function getSeoulDateParts(value: string): { month: number; day: number; 
   const partMap = new Map(parts.map((part) => [part.type, part.value]));
 
   return {
+    year: Number(partMap.get("year") ?? "0"),
     month: Number(partMap.get("month") ?? "0"),
     day: Number(partMap.get("day") ?? "0"),
     hour: Number(partMap.get("hour") ?? "0"),
     minute: Number(partMap.get("minute") ?? "0"),
   };
+}
+
+export function formatSeoulDateKey(value: string): string {
+  const { year, month, day } = getSeoulDateParts(value);
+  return `${String(year).padStart(4, "0")}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
 }
 
 export function formatDayLabel(value: string): string {

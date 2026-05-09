@@ -8,6 +8,9 @@ import type {
   Airport,
   CollectorStatusResponse,
   FlightStatusResponse,
+  HolidayPatternItem,
+  HolidayPatternResponse,
+  HolidaySummaryResponse,
   ParkingLot,
   ParkingStatus,
   ParkingTimeSeriesResponse,
@@ -30,6 +33,8 @@ type DashboardScreenProps = {
   thresholdEvents: ThresholdEvent[];
   thresholdInsights: ThresholdInsightsResponse | null;
   weekdayHourlyPatterns: WeekdayHourlyPattern[];
+  holidaySummary: HolidaySummaryResponse | null;
+  holidayPatterns: HolidayPatternResponse | null;
   timeSeries: ParkingTimeSeriesResponse | null;
   flightStatus: FlightStatusResponse | null;
   collectorStatus: CollectorStatusResponse | null;
@@ -95,6 +100,14 @@ function formatDateCell(localDate: string, weekdayName: string): string {
   return `${month}.${day} (${weekdayName})`;
 }
 
+function formatHolidayDate(localDate: string, weekdayName: string): string {
+  const [year, month, day] = localDate.split("-");
+  if (!year || !month || !day) {
+    return `${localDate} (${weekdayName})`;
+  }
+  return `${Number(month)}/${Number(day)} (${weekdayName})`;
+}
+
 function getObservedBuckets(hourlyBuckets: WeekdayHourBucket[]): WeekdayHourBucket[] {
   return hourlyBuckets.filter(
     (bucket): bucket is WeekdayHourBucket & { average_available_spaces: number } =>
@@ -119,6 +132,25 @@ function buildAvailabilityHeatStyle(value: number | null, maxValue: number): CSS
 }
 
 function summarizePattern(pattern: WeekdayHourlyPattern): {
+  tightestHour: WeekdayHourBucket | null;
+  loosestHour: WeekdayHourBucket | null;
+} {
+  const observedBuckets = getObservedBuckets(pattern.hourly_buckets);
+  if (observedBuckets.length === 0) {
+    return { tightestHour: null, loosestHour: null };
+  }
+
+  const sorted = [...observedBuckets].sort(
+    (left, right) => (left.average_available_spaces ?? 0) - (right.average_available_spaces ?? 0)
+  );
+
+  return {
+    tightestHour: sorted[0],
+    loosestHour: sorted[sorted.length - 1],
+  };
+}
+
+function summarizeHolidayPattern(pattern: HolidayPatternItem): {
   tightestHour: WeekdayHourBucket | null;
   loosestHour: WeekdayHourBucket | null;
 } {
@@ -205,6 +237,8 @@ export function DashboardScreen({
   thresholdEvents,
   thresholdInsights,
   weekdayHourlyPatterns,
+  holidaySummary,
+  holidayPatterns,
   timeSeries,
   flightStatus,
   collectorStatus,
@@ -241,6 +275,13 @@ export function DashboardScreen({
   const thresholdHistoryItems = thresholdInsights?.history_items ?? [];
   const showThresholdInsights = hasThresholdSamples(thresholdWeekdayItems);
   const averageAvailabilitySummary = summarizeAverageAvailability(weekdayHourlyPatterns);
+  const holidayPatternItems = holidayPatterns?.items ?? [];
+  const maxHolidayHeatValue = Math.max(
+    ...holidayPatternItems.flatMap((pattern) =>
+      pattern.hourly_buckets.map((bucket) => bucket.average_available_spaces ?? 0)
+    ),
+    1
+  );
 
   return (
     <main className="page-shell">
@@ -311,6 +352,7 @@ export function DashboardScreen({
           <div className="status-meta">
             <span>데이터 기준 시각: {latestObservedAt ? formatDateTimeWithZone(latestObservedAt) : "데이터 없음"}</span>
             {latestSyncedAt ? <span>수집기 마지막 동기화: {formatDateTimeWithZone(latestSyncedAt)}</span> : null}
+            {holidaySummary ? <span className="holiday-sentence">{holidaySummary.sentence}</span> : null}
           </div>
         </div>
 
@@ -419,7 +461,12 @@ export function DashboardScreen({
       )}
 
       <section className="analytics-grid">
-        <HistoryChart flightStatus={flightStatus} series={timeSeries} scopeLabel={scopeLabel} />
+        <HistoryChart
+          flightStatus={flightStatus}
+          holidays={holidaySummary?.items ?? []}
+          series={timeSeries}
+          scopeLabel={scopeLabel}
+        />
 
         <article className="panel-surface panel-full-span">
           <div className="panel-head">
@@ -561,6 +608,99 @@ export function DashboardScreen({
                 );
               })}
             </div>
+          )}
+        </article>
+
+        <article className="panel-surface panel-full-span">
+          <div className="panel-head">
+            <div>
+              <h3>공휴일 패턴</h3>
+              <p>최근 8개 공휴일 날짜별 시간대 잔여 주차면</p>
+            </div>
+          </div>
+          {holidayPatternItems.length === 0 ? (
+            <p className="notice">표시할 공휴일 패턴 데이터가 없습니다.</p>
+          ) : (
+            <>
+              {holidayPatterns?.error_message ? (
+                <p className="notice error">{holidayPatterns.error_message}</p>
+              ) : null}
+              <div className="heatmap-scroll" data-testid="holiday-pattern-heatmap">
+                <table className="heatmap-table holiday-heatmap-table">
+                  <thead>
+                    <tr>
+                      <th>공휴일</th>
+                      {HOURS.map((hour) => (
+                        <th key={`holiday-hour-${hour}`}>{String(hour).padStart(2, "0")}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {holidayPatternItems.map((pattern) => (
+                      <tr key={`holiday-row-${pattern.local_date}-${pattern.name}`}>
+                        <th>
+                          <strong>{formatHolidayDate(pattern.local_date, pattern.weekday_name)}</strong>
+                          <small>{pattern.name}</small>
+                        </th>
+                        {pattern.hourly_buckets.map((bucket) => (
+                          <td
+                            key={`holiday-cell-${pattern.local_date}-${bucket.hour}`}
+                            data-testid={`holiday-hour-cell-${pattern.local_date}-${bucket.hour}`}
+                            style={buildAvailabilityHeatStyle(bucket.average_available_spaces, maxHolidayHeatValue)}
+                            title={
+                              bucket.average_available_spaces === null
+                                ? `${pattern.name} ${formatHourLabel(bucket.hour)} 관측 없음`
+                                : `${pattern.name} ${formatHourLabel(bucket.hour)} 평균 ${Math.round(bucket.average_available_spaces)}대`
+                            }
+                          >
+                            {bucket.average_available_spaces === null ? "-" : Math.round(bucket.average_available_spaces)}
+                          </td>
+                        ))}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              <div className="holiday-pattern-grid" data-testid="holiday-pattern-grid">
+                {holidayPatternItems.map((pattern) => {
+                  const { tightestHour, loosestHour } = summarizeHolidayPattern(pattern);
+                  return (
+                    <article key={`holiday-card-${pattern.local_date}-${pattern.name}`} className="weekday-detail-card">
+                      <div className="weekday-detail-head">
+                        <div>
+                          <h4>{formatHolidayDate(pattern.local_date, pattern.weekday_name)}</h4>
+                          <p>{pattern.name}</p>
+                        </div>
+                        <div className="weekday-detail-summary">
+                          <span>
+                            평균{" "}
+                            {pattern.average_available_spaces === null
+                              ? "-"
+                              : `${formatNumber(Math.round(pattern.average_available_spaces))}대`}
+                          </span>
+                          <span>관측 {formatNumber(pattern.observations)}개</span>
+                        </div>
+                      </div>
+                      <div className="holiday-extreme-row">
+                        <span>
+                          가장 빠듯함{" "}
+                          {tightestHour?.average_available_spaces !== null && tightestHour
+                            ? `${formatHourLabel(tightestHour.hour)} ${formatNumber(Math.round(tightestHour.average_available_spaces))}대`
+                            : "-"}
+                        </span>
+                        <span>
+                          가장 여유{" "}
+                          {loosestHour?.average_available_spaces !== null && loosestHour
+                            ? `${formatHourLabel(loosestHour.hour)} ${formatNumber(Math.round(loosestHour.average_available_spaces))}대`
+                            : "-"}
+                        </span>
+                      </div>
+                    </article>
+                  );
+                })}
+              </div>
+            </>
           )}
         </article>
 

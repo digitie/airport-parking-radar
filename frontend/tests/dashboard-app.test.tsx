@@ -7,6 +7,8 @@ import type {
   Airport,
   CollectorStatusResponse,
   FlightStatusResponse,
+  HolidayPatternResponse,
+  HolidaySummaryResponse,
   ParkingCurrentResponse,
   ParkingTimeSeriesResponse,
   ThresholdInsightsResponse,
@@ -82,6 +84,27 @@ const timeSeriesPayload: ParkingTimeSeriesResponse = {
   ],
 };
 
+const holidaySummaryPayload: HolidaySummaryResponse = {
+  generated_at: "2026-05-09T00:00:00.000Z",
+  start_date: "2026-04-27",
+  end_date: "2026-05-17",
+  source: "sample_holiday_info",
+  status: "sample",
+  error_message: null,
+  sentence: "5/5 (화) 어린이날 입니다.",
+  items: [{ local_date: "2026-05-05", name: "어린이날", weekday: 1, weekday_name: "화" }],
+};
+
+const holidayPatternPayload: HolidayPatternResponse = {
+  generated_at: "2026-05-09T00:00:00.000Z",
+  airport_code: "GMP",
+  parking_lot_id: null,
+  source: "sample_holiday_info",
+  status: "sample",
+  error_message: null,
+  items: [],
+};
+
 const thresholdInsightsPayload: ThresholdInsightsResponse = {
   generated_at: "2026-04-26T00:00:00.000Z",
   airport_code: "GMP",
@@ -127,6 +150,8 @@ const apiClient = {
   getThresholdEvents: vi.fn(async () => []),
   getThresholdInsights: vi.fn(async () => thresholdInsightsPayload),
   getByWeekdayHour: vi.fn(async () => []),
+  getHolidaySummary: vi.fn(async () => holidaySummaryPayload),
+  getHolidayPatterns: vi.fn(async () => holidayPatternPayload),
   getTimeSeries: vi.fn(async () => timeSeriesPayload),
   getFlightStatus: vi.fn(async () => flightStatusPayload),
   getCollectorStatus: vi.fn(async () => buildCollectorStatus()),

@@ -28,6 +28,9 @@ function isAllowedBackendRequest(path: string, method: string): boolean {
   if (path.startsWith("parking/") && method === "GET") {
     return true;
   }
+  if (path.startsWith("holidays/") && method === "GET") {
+    return true;
+  }
   if (path === "flights/status" && method === "GET") {
     return true;
   }

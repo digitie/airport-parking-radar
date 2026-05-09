@@ -331,6 +331,7 @@ def parse_flight_status_xml(
         if parsed is not None:
             items.append(parsed)
 
+    items = _deduplicate_codeshare_flights(items)
     items.sort(key=lambda flight: (flight["marker_at"], flight["flight_number"]))
     return items, None
 
@@ -355,6 +356,7 @@ def parse_kac_flight_detail_json(
         if parsed is not None:
             items.append(parsed)
 
+    items = _deduplicate_codeshare_flights(items)
     items.sort(key=lambda flight: (flight["marker_at"], flight["flight_number"]))
     return items, None
 
@@ -382,6 +384,7 @@ def parse_incheon_flight_status_json(
             if parsed is not None:
                 items.append(parsed)
 
+    items = _deduplicate_codeshare_flights(items)
     items.sort(key=lambda flight: (flight["marker_at"], flight["flight_number"]))
     return items, "\n".join(errors) if errors else None
 
@@ -392,6 +395,49 @@ def _build_client(settings: Settings) -> FlightStatusClient | None:
     if settings.use_sample_client_when_no_key:
         return FixtureFlightStatusClient()
     return None
+
+
+def _deduplicate_codeshare_flights(items: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    grouped: dict[tuple[str, Any, str, str], list[dict[str, Any]]] = {}
+    for item in items:
+        key = (
+            str(item.get("direction") or ""),
+            item.get("marker_at"),
+            str(item.get("origin_airport") or "").strip(),
+            str(item.get("destination_airport") or "").strip(),
+        )
+        grouped.setdefault(key, []).append(item)
+
+    deduplicated: list[dict[str, Any]] = []
+    for group in grouped.values():
+        if len(group) == 1:
+            item = {**group[0]}
+            item["codeshare_flight_numbers"] = [str(item.get("flight_number") or "").strip()]
+            deduplicated.append(item)
+            continue
+
+        ordered_group = sorted(group, key=lambda flight: str(flight.get("flight_number") or ""))
+        representative = {**ordered_group[0]}
+        flight_numbers = _unique_text_values(ordered_group, "flight_number")
+        airlines = _unique_text_values(ordered_group, "airline")
+        representative["flight_number"] = " / ".join(flight_numbers)
+        representative["codeshare_flight_numbers"] = flight_numbers
+        representative["airline"] = " / ".join(airlines) if airlines else None
+        deduplicated.append(representative)
+
+    return deduplicated
+
+
+def _unique_text_values(items: list[dict[str, Any]], key: str) -> list[str]:
+    values: list[str] = []
+    seen: set[str] = set()
+    for item in items:
+        value = str(item.get(key) or "").strip()
+        if not value or value in seen:
+            continue
+        seen.add(value)
+        values.append(value)
+    return values
 
 
 def _build_sample_flight_xml(airport_code: str) -> str:

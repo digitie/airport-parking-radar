@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from collections import defaultdict
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 from statistics import mean, median
 from zoneinfo import ZoneInfo
 
@@ -128,6 +128,7 @@ def build_time_series(
     now: datetime | None = None,
     days: int = 7,
     interval_minutes: int = 30,
+    future_hours: int = 0,
     tz_name: str = "Asia/Seoul",
 ) -> list[dict[str, int | datetime]]:
     if not snapshots:
@@ -143,9 +144,11 @@ def build_time_series(
         default=ensure_tz(now or now_utc(), "UTC"),
     )
 
-    bucket_count = max(1, int((days * 24 * 60) / interval_minutes))
-    aligned_end = align_to_interval(latest_observed_at, interval_minutes, tz_name)
-    start = aligned_end - timedelta(minutes=interval_minutes * (bucket_count - 1))
+    history_bucket_count = max(1, int((days * 24 * 60) / interval_minutes))
+    future_bucket_count = max(0, int((future_hours * 60) / interval_minutes))
+    bucket_count = history_bucket_count + future_bucket_count
+    aligned_current = align_to_interval(latest_observed_at, interval_minutes, tz_name)
+    start = aligned_current - timedelta(minutes=interval_minutes * (history_bucket_count - 1))
     buckets = [start + timedelta(minutes=interval_minutes * index) for index in range(bucket_count)]
 
     items = [
@@ -164,6 +167,8 @@ def build_time_series(
         current: ParkingSnapshot | None = None
         for item in items:
             bucket_at = item["bucket_at"]
+            if ensure_tz(bucket_at, "UTC") > latest_observed_at:
+                continue
             while snapshot_index < len(lot_snapshots) and ensure_tz(lot_snapshots[snapshot_index].observed_at, "UTC") <= bucket_at:
                 current = lot_snapshots[snapshot_index]
                 snapshot_index += 1
@@ -177,7 +182,8 @@ def build_time_series(
             item["lot_observations"] += 1
 
     if latest_snapshots:
-        items[-1] = {
+        current_index = history_bucket_count - 1
+        items[current_index] = {
             "bucket_at": latest_observed_at,
             "available_spaces": sum(snapshot.available_spaces for snapshot in latest_snapshots),
             "occupied_spaces": sum(snapshot.occupied_spaces for snapshot in latest_snapshots),
@@ -186,6 +192,58 @@ def build_time_series(
         }
 
     return items
+
+
+def build_holiday_patterns(
+    snapshots: list[ParkingSnapshot],
+    holidays: list[tuple[date, str]],
+    tz_name: str = "Asia/Seoul",
+) -> list[dict[str, int | float | str | None | list[dict[str, int | float | None]]]]:
+    tz = ZoneInfo(tz_name)
+    holiday_names = {local_date: name for local_date, name in holidays}
+    hourly_totals: dict[date, dict[int, dict[datetime, int]]] = defaultdict(lambda: defaultdict(lambda: defaultdict(int)))
+
+    for snapshot in snapshots:
+        observed_at_utc = ensure_tz(snapshot.observed_at, "UTC")
+        local_observed_at = observed_at_utc.astimezone(tz)
+        local_date = local_observed_at.date()
+        if local_date not in holiday_names:
+            continue
+        hourly_totals[local_date][local_observed_at.hour][observed_at_utc] += snapshot.available_spaces
+
+    patterns = []
+    for local_date, name in sorted(holidays, key=lambda item: item[0], reverse=True):
+        hourly_buckets = []
+        date_values: list[int] = []
+
+        for hour in range(24):
+            hour_values = list(hourly_totals.get(local_date, {}).get(hour, {}).values())
+            date_values.extend(hour_values)
+            hourly_buckets.append(
+                {
+                    "hour": hour,
+                    "average_available_spaces": round(mean(hour_values), 2) if hour_values else None,
+                    "min_available_spaces": min(hour_values) if hour_values else None,
+                    "max_available_spaces": max(hour_values) if hour_values else None,
+                    "observations": len(hour_values),
+                }
+            )
+
+        patterns.append(
+            {
+                "local_date": local_date.isoformat(),
+                "name": name,
+                "weekday": local_date.weekday(),
+                "weekday_name": WEEKDAY_LABELS[local_date.weekday()],
+                "average_available_spaces": round(mean(date_values), 2) if date_values else None,
+                "min_available_spaces": min(date_values) if date_values else None,
+                "max_available_spaces": max(date_values) if date_values else None,
+                "observations": len(date_values),
+                "hourly_buckets": hourly_buckets,
+            }
+        )
+
+    return patterns
 
 
 def detect_threshold_events(

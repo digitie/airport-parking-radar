@@ -5,6 +5,8 @@ import type {
   FeeCalculationRequest,
   FeeCalculationResponse,
   FlightStatusResponse,
+  HolidayPatternResponse,
+  HolidaySummaryResponse,
   HourlyBucket,
   ParkingCurrentResponse,
   ParkingTimeSeriesResponse,
@@ -43,6 +45,7 @@ function buildAnalyticsUrl(
     parkingLotId?: number | null;
     days?: number;
     intervalMinutes?: number;
+    futureHours?: number;
   } = {}
 ): string {
   const params = new URLSearchParams({ airport_code: airportCode });
@@ -54,6 +57,9 @@ function buildAnalyticsUrl(
   }
   if (options.intervalMinutes != null) {
     params.set("interval_minutes", String(options.intervalMinutes));
+  }
+  if (options.futureHours != null) {
+    params.set("future_hours", String(options.futureHours));
   }
   return `${baseUrl}${path}?${params.toString()}`;
 }
@@ -104,6 +110,9 @@ export function buildApiClient(apiBaseUrl?: string) {
       const params = new URLSearchParams({ airport_code: airportCode });
       return getJson<FlightStatusResponse>(`${baseUrl}/flights/status?${params.toString()}`);
     },
+    getHolidaySummary(): Promise<HolidaySummaryResponse> {
+      return getJson<HolidaySummaryResponse>(`${baseUrl}/holidays/summary`);
+    },
     runCollector(adminToken?: string): Promise<CollectionSummary> {
       return getJson<CollectionSummary>(`${baseUrl}/admin/collect`, {
         method: "POST",
@@ -125,16 +134,30 @@ export function buildApiClient(apiBaseUrl?: string) {
     },
     getTimeSeries(
       airportCode: string,
-      options: { parkingLotId?: number | null; days?: number; intervalMinutes?: number } = {}
+      options: { parkingLotId?: number | null; days?: number; intervalMinutes?: number; futureHours?: number } = {}
     ): Promise<ParkingTimeSeriesResponse> {
-      const { parkingLotId = null, days = 7, intervalMinutes = 30 } = options;
+      const { parkingLotId = null, days = 7, intervalMinutes = 30, futureHours = 4 } = options;
       return getJson<ParkingTimeSeriesResponse>(
         buildAnalyticsUrl(baseUrl, "/parking/analytics/timeseries", airportCode, {
           parkingLotId,
           days,
           intervalMinutes,
+          futureHours,
         })
       );
+    },
+    getHolidayPatterns(
+      airportCode: string,
+      options: { parkingLotId?: number | null; limit?: number } = {}
+    ): Promise<HolidayPatternResponse> {
+      const params = new URLSearchParams({ airport_code: airportCode });
+      if (options.parkingLotId != null) {
+        params.set("parking_lot_id", String(options.parkingLotId));
+      }
+      if (options.limit != null) {
+        params.set("limit", String(options.limit));
+      }
+      return getJson<HolidayPatternResponse>(`${baseUrl}/parking/analytics/holiday-patterns?${params.toString()}`);
     },
     getThresholdEvents(airportCode: string, parkingLotId: number | null = null): Promise<ThresholdEvent[]> {
       return getJson<ThresholdEvent[]>(

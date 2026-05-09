@@ -68,6 +68,7 @@ class ParkingTimeSeriesResponse(BaseModel):
     parking_lot_id: int | None = None
     days: int
     interval_minutes: int
+    future_hours: int = 0
     items: list[TimeSeriesPoint]
 
 
@@ -75,6 +76,7 @@ class FlightStatusItem(BaseModel):
     airport_code: str
     direction: str
     flight_number: str
+    codeshare_flight_numbers: list[str] = Field(default_factory=list)
     airline: str | None = None
     scheduled_at: datetime
     estimated_at: datetime | None = None
@@ -128,6 +130,46 @@ class WeekdayHourlyPattern(BaseModel):
     max_available_spaces: int | None = None
     observations: int
     hourly_buckets: list[WeekdayHourBucket]
+
+
+class HolidayItemSummary(BaseModel):
+    local_date: str
+    name: str
+    weekday: int
+    weekday_name: str
+
+
+class HolidaySummaryResponse(BaseModel):
+    generated_at: datetime
+    start_date: str
+    end_date: str
+    source: str
+    status: str
+    error_message: str | None = None
+    sentence: str
+    items: list[HolidayItemSummary]
+
+
+class HolidayPatternItem(BaseModel):
+    local_date: str
+    name: str
+    weekday: int
+    weekday_name: str
+    average_available_spaces: float | None = None
+    min_available_spaces: int | None = None
+    max_available_spaces: int | None = None
+    observations: int
+    hourly_buckets: list[WeekdayHourBucket]
+
+
+class HolidayPatternResponse(BaseModel):
+    generated_at: datetime
+    airport_code: str | None = None
+    parking_lot_id: int | None = None
+    source: str
+    status: str
+    error_message: str | None = None
+    items: list[HolidayPatternItem]
 
 
 class ThresholdEvent(BaseModel):

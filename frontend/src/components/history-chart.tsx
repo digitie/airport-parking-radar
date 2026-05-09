@@ -7,10 +7,17 @@ import {
   formatAxisTimeLabel,
   formatDateTimeWithZone,
   formatNumber,
+  formatSeoulDateKey,
   getSeoulDateParts,
   parseApiDate,
 } from "@/lib/format";
-import type { FlightStatusItem, FlightStatusResponse, ParkingTimeSeriesResponse, TimeSeriesPoint } from "@/lib/types";
+import type {
+  FlightStatusItem,
+  FlightStatusResponse,
+  HolidayItemSummary,
+  ParkingTimeSeriesResponse,
+  TimeSeriesPoint,
+} from "@/lib/types";
 
 const CHART_MIN_WIDTH = 1280;
 const CHART_HEIGHT = 280;
@@ -21,6 +28,7 @@ const TOOLTIP_EDGE_PADDING = 88;
 
 type HistoryChartProps = {
   flightStatus: FlightStatusResponse | null;
+  holidays: HolidayItemSummary[];
   series: ParkingTimeSeriesResponse | null;
   scopeLabel: string;
 };
@@ -39,8 +47,15 @@ type AxisMarker = {
 
 type FlightChartMarker = FlightStatusItem & {
   x: number;
+  key: string;
   label: string;
   markerY: number;
+};
+
+type HolidayChartBand = HolidayItemSummary & {
+  x: number;
+  width: number;
+  labelX: number;
 };
 
 function clamp(value: number, min: number, max: number): number {
@@ -70,7 +85,10 @@ function buildLabelIndexes(points: TimeSeriesPoint[]): number[] {
 function buildChartPoints(points: TimeSeriesPoint[], chartWidth: number): ChartPoint[] {
   const innerWidth = chartWidth - CHART_PADDING_X * 2;
   const innerHeight = CHART_HEIGHT - CHART_PADDING_Y * 2;
-  const maxValue = Math.max(...points.map((point) => point.available_spaces), 1);
+  const observedValues = points
+    .filter((point) => point.lot_observations > 0)
+    .map((point) => point.available_spaces);
+  const maxValue = Math.max(...observedValues, 1);
 
   return points.map((point, index) => ({
     ...point,
@@ -124,6 +142,40 @@ function buildStepAreaPath(points: ChartPoint[]): string {
   path.push(`L ${points[points.length - 1].x} ${bottom}`);
   path.push("Z");
   return path.join(" ");
+}
+
+function buildHolidayBands(holidays: HolidayItemSummary[], points: ChartPoint[], chartWidth: number): HolidayChartBand[] {
+  if (holidays.length === 0 || points.length === 0) {
+    return [];
+  }
+
+  const pointsByDate = new Map<string, ChartPoint[]>();
+  for (const point of points) {
+    const localDate = formatSeoulDateKey(point.bucket_at);
+    pointsByDate.set(localDate, [...(pointsByDate.get(localDate) ?? []), point]);
+  }
+
+  const stepWidth =
+    points.length > 1 ? (chartWidth - CHART_PADDING_X * 2) / Math.max(points.length - 1, 1) : chartWidth - CHART_PADDING_X * 2;
+
+  return holidays.flatMap((holiday) => {
+    const matchedPoints = pointsByDate.get(holiday.local_date) ?? [];
+    if (matchedPoints.length === 0) {
+      return [];
+    }
+    const firstPoint = matchedPoints[0];
+    const lastPoint = matchedPoints[matchedPoints.length - 1];
+    const x = clamp(firstPoint.x - stepWidth / 2, CHART_PADDING_X, chartWidth - CHART_PADDING_X);
+    const maxX = clamp(lastPoint.x + stepWidth / 2, CHART_PADDING_X, chartWidth - CHART_PADDING_X);
+    return [
+      {
+        ...holiday,
+        x,
+        width: Math.max(maxX - x, 1),
+        labelX: x + Math.max(maxX - x, 1) / 2,
+      },
+    ];
+  });
 }
 
 function formatFlightDirection(direction: FlightStatusItem["direction"]): string {
@@ -184,6 +236,7 @@ function buildFlightMarkers(flightStatus: FlightStatusResponse | null, points: C
     markers.push({
       ...flight,
       x,
+      key: `${flight.direction}-${flight.marker_at}-${flight.origin_airport}-${flight.destination_airport}-${flight.flight_number}`,
       label: formatFlightMarkerLabel(flight),
       markerY: CHART_PADDING_Y + 12 + (markers.length % 3) * 9,
     });
@@ -202,12 +255,16 @@ function findHighestPoint(points: TimeSeriesPoint[]): TimeSeriesPoint {
   );
 }
 
-export function HistoryChart({ flightStatus, series, scopeLabel }: HistoryChartProps) {
+export function HistoryChart({ flightStatus, holidays, series, scopeLabel }: HistoryChartProps) {
   const [activePointIndex, setActivePointIndex] = useState<number | null>(null);
+  const [hoveredFlightKey, setHoveredFlightKey] = useState<string | null>(null);
+  const [selectedFlightKey, setSelectedFlightKey] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     setActivePointIndex(null);
+    setHoveredFlightKey(null);
+    setSelectedFlightKey(null);
 
     if (!series || series.items.length === 0) {
       return;
@@ -236,21 +293,43 @@ export function HistoryChart({ flightStatus, series, scopeLabel }: HistoryChartP
   }
 
   const points = series.items;
+  const observedPoints = points.filter((point) => point.lot_observations > 0);
+  if (observedPoints.length === 0) {
+    return (
+      <article className="panel-surface history-panel">
+        <div className="panel-head">
+          <div>
+            <h3>최근 {series.days}일 잔여 주차면</h3>
+            <p className="history-scope">기준: {scopeLabel}</p>
+          </div>
+        </div>
+        <p className="notice">표시할 주차 관측 데이터가 없습니다.</p>
+      </article>
+    );
+  }
+
   const labelIndexes = buildLabelIndexes(points);
   const chartWidth = Math.max(CHART_MIN_WIDTH, labelIndexes.length * 64);
   const chartPoints = buildChartPoints(points, chartWidth);
+  const observedChartPoints = chartPoints.filter((point) => point.lot_observations > 0);
   const axisMarkers = buildAxisMarkers(chartPoints, labelIndexes);
+  const holidayBands = buildHolidayBands(holidays, chartPoints, chartWidth);
   const flightMarkers = buildFlightMarkers(flightStatus, chartPoints);
+  const activeFlightKey = hoveredFlightKey ?? selectedFlightKey;
+  const activeFlightMarker = activeFlightKey ? flightMarkers.find((marker) => marker.key === activeFlightKey) ?? null : null;
   const flightDepartureCount = flightMarkers.filter((flight) => flight.direction === "departure").length;
   const flightArrivalCount = flightMarkers.filter((flight) => flight.direction === "arrival").length;
   const visibleFlightSample = flightMarkers.slice(0, 12);
-  const latestPoint = points[points.length - 1];
-  const lowestPoint = findLowestPoint(points);
-  const highestPoint = findHighestPoint(points);
+  const latestPoint = observedPoints[observedPoints.length - 1];
+  const lowestPoint = findLowestPoint(observedPoints);
+  const highestPoint = findHighestPoint(observedPoints);
   const chartPointByBucket = new Map(chartPoints.map((point) => [point.bucket_at, point] as const));
   const latestChartPoint = chartPointByBucket.get(latestPoint.bucket_at);
   const lowestChartPoint = chartPointByBucket.get(lowestPoint.bucket_at);
-  const defaultActivePointIndex = Math.max(chartPoints.length - 1, 0);
+  const defaultActivePointIndex = Math.max(
+    chartPoints.findIndex((point) => point.bucket_at === latestPoint.bucket_at),
+    0
+  );
   const resolvedActivePointIndex =
     activePointIndex !== null && activePointIndex < chartPoints.length ? activePointIndex : defaultActivePointIndex;
   const activePoint = chartPoints[resolvedActivePointIndex] ?? null;
@@ -279,7 +358,7 @@ export function HistoryChart({ flightStatus, series, scopeLabel }: HistoryChartP
           <h3>최근 {series.days}일 잔여 주차면</h3>
           <p className="history-scope">기준: {scopeLabel}</p>
         </div>
-        <p className="section-hint">마지막 값 {formatDateTimeWithZone(latestPoint.bucket_at)}</p>
+        <p className="section-hint">마지막 관측 {formatDateTimeWithZone(latestPoint.bucket_at)}</p>
       </div>
 
       <div className="history-summary">
@@ -313,8 +392,26 @@ export function HistoryChart({ flightStatus, series, scopeLabel }: HistoryChartP
                 data-testid="history-tooltip"
                 style={{ left: `${tooltipLeft}px`, top: `${tooltipTop}px` }}
               >
-                <strong>{formatNumber(activePoint.available_spaces)}대</strong>
+                <strong>
+                  {activePoint.lot_observations > 0 ? `${formatNumber(activePoint.available_spaces)}대` : "주차 정보 없음"}
+                </strong>
                 <span>{formatDateTimeWithZone(activePoint.bucket_at)}</span>
+              </div>
+            ) : null}
+
+            {activeFlightMarker ? (
+              <div
+                className="flight-highlight-label"
+                data-testid="flight-highlight-label"
+                style={{ left: `${clamp(activeFlightMarker.x, 110, chartWidth - 110)}px` }}
+              >
+                <strong>
+                  {formatAxisTimeLabel(activeFlightMarker.marker_at)} {activeFlightMarker.flight_number}
+                </strong>
+                <span>
+                  {formatFlightDirection(activeFlightMarker.direction)} {activeFlightMarker.origin_airport} {"->"}{" "}
+                  {activeFlightMarker.destination_airport}
+                </span>
               </div>
             ) : null}
 
@@ -357,13 +454,31 @@ export function HistoryChart({ flightStatus, series, scopeLabel }: HistoryChartP
                 />
               ))}
 
-              <path className="history-area" d={buildStepAreaPath(chartPoints)} />
-              <path className="history-line" d={buildStepLinePath(chartPoints)} fill="none" />
+              {holidayBands.map((band) => (
+                <g key={`holiday-band-${band.local_date}-${band.name}`}>
+                  <rect
+                    className="holiday-band"
+                    data-testid="holiday-band"
+                    height={CHART_HEIGHT - CHART_PADDING_Y * 2}
+                    width={band.width}
+                    x={band.x}
+                    y={CHART_PADDING_Y}
+                  />
+                  <text className="holiday-band-label" textAnchor="middle" x={band.labelX} y={CHART_PADDING_Y - 6}>
+                    {band.name}
+                  </text>
+                </g>
+              ))}
 
-              {flightMarkers.map((marker, index) => (
+              <path className="history-area" d={buildStepAreaPath(observedChartPoints)} />
+              <path className="history-line" d={buildStepLinePath(observedChartPoints)} fill="none" />
+
+              {flightMarkers.map((marker) => (
                 <g
-                  key={`${marker.flight_number}-${marker.marker_at}-${marker.direction}-${index}`}
-                  className={`flight-marker flight-marker-${marker.direction}`}
+                  key={marker.key}
+                  className={`flight-marker flight-marker-${marker.direction} ${
+                    marker.key === activeFlightKey ? "active" : ""
+                  } ${marker.key === selectedFlightKey ? "selected" : ""}`}
                   data-testid="flight-marker"
                 >
                   <title>{marker.label}</title>
@@ -387,7 +502,9 @@ export function HistoryChart({ flightStatus, series, scopeLabel }: HistoryChartP
                     y1={CHART_PADDING_Y}
                     y2={CHART_HEIGHT - CHART_PADDING_Y}
                   />
-                  <circle className="history-point active" cx={activePoint.x} cy={activePoint.y} r="6" />
+                  {activePoint.lot_observations > 0 ? (
+                    <circle className="history-point active" cx={activePoint.x} cy={activePoint.y} r="6" />
+                  ) : null}
                 </>
               ) : null}
               {lowestChartPoint ? (
@@ -397,6 +514,22 @@ export function HistoryChart({ flightStatus, series, scopeLabel }: HistoryChartP
                 <circle className="history-point latest" cx={latestChartPoint.x} cy={latestChartPoint.y} r="5" />
               ) : null}
             </svg>
+
+            {flightMarkers.map((marker) => (
+              <button
+                key={`hit-${marker.key}`}
+                aria-label={marker.label}
+                className={`flight-hit-target ${marker.key === activeFlightKey ? "active" : ""}`}
+                style={{ left: `${marker.x}px` }}
+                title={marker.label}
+                type="button"
+                onBlur={() => setHoveredFlightKey(null)}
+                onClick={() => setSelectedFlightKey((current) => (current === marker.key ? null : marker.key))}
+                onFocus={() => setHoveredFlightKey(marker.key)}
+                onMouseEnter={() => setHoveredFlightKey(marker.key)}
+                onMouseLeave={() => setHoveredFlightKey(null)}
+              />
+            ))}
 
             <div
               className="history-chart-surface"
@@ -459,15 +592,22 @@ export function HistoryChart({ flightStatus, series, scopeLabel }: HistoryChartP
 
       {visibleFlightSample.length > 0 ? (
         <div className="flight-marker-list" data-testid="flight-marker-list">
-          {visibleFlightSample.map((flight, index) => (
-            <span key={`${flight.flight_number}-${flight.marker_at}-${index}`} className={`flight-chip ${flight.direction}`}>
+          {visibleFlightSample.map((flight) => (
+            <button
+              key={flight.key}
+              className={`flight-chip ${flight.direction} ${flight.key === activeFlightKey ? "active" : ""}`}
+              type="button"
+              onClick={() => setSelectedFlightKey((current) => (current === flight.key ? null : flight.key))}
+              onMouseEnter={() => setHoveredFlightKey(flight.key)}
+              onMouseLeave={() => setHoveredFlightKey(null)}
+            >
               <strong>
                 {formatAxisTimeLabel(flight.marker_at)} {flight.flight_number}
               </strong>
               <small>
                 {formatFlightDirection(flight.direction)} {flight.origin_airport} {"->"} {flight.destination_airport}
               </small>
-            </span>
+            </button>
           ))}
           {flightMarkers.length > visibleFlightSample.length ? (
             <span className="flight-chip more">외 {formatNumber(flightMarkers.length - visibleFlightSample.length)}편</span>

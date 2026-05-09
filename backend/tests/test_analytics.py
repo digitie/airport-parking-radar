@@ -94,6 +94,29 @@ def test_build_time_series_aggregates_latest_state_per_half_hour() -> None:
     assert buckets[-1]["bucket_at"] == base + timedelta(minutes=40)
 
 
+def test_build_time_series_adds_future_axis_without_carrying_parking_values() -> None:
+    base = datetime(2026, 4, 21, 0, 0, tzinfo=ZoneInfo("UTC"))
+    snapshots = [
+        ParkingSnapshot(id=1, collection_run_id=None, airport_id=1, parking_lot_id=1, source="seed", observed_at=base + timedelta(minutes=40), collected_at=base, occupied_spaces=40, total_spaces=100, available_spaces=60, congestion_label=None, congestion_ratio=None, raw_item_json=None),
+    ]
+
+    buckets = build_time_series(
+        snapshots,
+        now=base + timedelta(hours=1),
+        days=1,
+        interval_minutes=30,
+        future_hours=1,
+        tz_name="UTC",
+    )
+
+    assert len(buckets) == 50
+    assert buckets[-3]["bucket_at"] == base + timedelta(minutes=40)
+    assert buckets[-3]["available_spaces"] == 60
+    assert buckets[-2]["lot_observations"] == 0
+    assert buckets[-2]["available_spaces"] == 0
+    assert buckets[-1]["lot_observations"] == 0
+
+
 def test_build_weekday_hour_patterns_returns_hourly_breakdown_per_weekday() -> None:
     base = datetime(2026, 4, 20, 0, 0, tzinfo=ZoneInfo("UTC"))
     snapshots = [
