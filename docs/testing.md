@@ -88,6 +88,7 @@ docker compose run --rm --no-deps backend pytest -q
 - 하루 흐름 오버레이 차트의 공휴일 선/마커 구분 표시
 - 하루 흐름 오버레이 차트의 비행편 마커와 편명/출도착 정보 표시
 - 하루 흐름 오버레이 차트의 비행편 마커 hover / click 강조
+- 모바일 stale cache 방지를 위한 `/` 및 `/api/backend/*` no-store 응답 헤더
 - 요일 x 시간 히트맵
 - 공휴일 시간대 패턴 히트맵
 - 요일별 시간대 상세 카드
@@ -204,6 +205,7 @@ in-app browser 또는 브라우저에서 다음을 확인한다.
 - 요일별 임계 달성 시간 / 날짜별 임계 달성 시간 표시
 - `지금 수집` 성공 / 쿨다운 메시지 표시
 - 브라우저 콘솔 `error` / `warn` 없음
+- `https://pr.digitie.mywire.org/`와 GET 방식의 `/api/backend/airports` 응답 헤더가 `Cache-Control: no-store, max-age=0, must-revalidate`인지 확인
 
 ## ODROID 배포 스모크 체크
 

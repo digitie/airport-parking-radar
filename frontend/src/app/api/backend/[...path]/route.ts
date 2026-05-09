@@ -69,6 +69,7 @@ function buildResponseHeaders(upstreamResponse: Response): Headers {
     }
   }
 
+  headers.set("cache-control", "no-store, max-age=0, must-revalidate");
   return headers;
 }
 

@@ -108,6 +108,7 @@ curl -X POST http://localhost:8000/admin/collect
 원인:
 
 - 이미지는 다시 빌드했지만 실행 중인 `frontend` 컨테이너를 재생성하지 않음
+- 모바일 브라우저 또는 중간 프록시가 예전 Next.js HTML/JS 번들을 캐시함
 
 조치:
 
@@ -115,6 +116,22 @@ curl -X POST http://localhost:8000/admin/collect
 docker compose build frontend
 docker compose up -d frontend
 ```
+
+운영 기준:
+
+- `/` HTML은 정적 장기 캐시가 붙지 않도록 `force-dynamic`, `revalidate=0`, `Cache-Control: no-store, max-age=0, must-revalidate`를 유지한다.
+- `/api/backend/*` 프록시 응답도 `Cache-Control: no-store, max-age=0, must-revalidate`를 유지한다.
+- ODROID 배포 후 모바일에서만 백엔드가 안 되는 것처럼 보이면 먼저 아래 헤더를 확인한다.
+
+```bash
+curl -I https://pr.digitie.mywire.org/
+curl -fsS -D - -o /dev/null https://pr.digitie.mywire.org/api/backend/airports
+```
+
+정상 기준:
+
+- 두 응답 모두 `Cache-Control: no-store, max-age=0, must-revalidate`를 포함한다.
+- 백엔드 로그에 `/api/backend`를 통한 요청이 `200 OK`로 찍히면 백엔드 자체 장애보다 모바일의 이전 번들/캐시 문제를 먼저 의심한다.
 
 ## 웹 UI의 `지금 수집` 버튼이 동작하지 않거나 막힐 때
 

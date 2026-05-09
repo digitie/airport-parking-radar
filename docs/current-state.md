@@ -310,7 +310,7 @@ row-level `collected_at`은 백엔드에 남아 있지만, 메인 UI에서는 �
 마지막 확인 기준:
 
 - 백엔드: `54 passed`
-- 프론트: `27 passed`
+- 프론트: `28 passed`
 
 관련 문서:
 - [testing.md](</F:/dev/parking-radar/docs/testing.md>)
