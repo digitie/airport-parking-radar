@@ -26,6 +26,7 @@ import type {
 type DashboardAppProps = {
   apiBaseUrl?: string;
   autoRefreshIntervalMs?: number;
+  flightStatusTimeoutMs?: number;
 };
 
 const DASHBOARD_AUTO_REFRESH_INTERVAL_MS = 60_000;
@@ -67,6 +68,22 @@ function buildHolidayPatternError(airportCode: string, parkingLotId: number | nu
   };
 }
 
+function withTimeout<T>(promise: Promise<T>, timeoutMs: number, buildFallback: () => T): Promise<T> {
+  let timeoutId: ReturnType<typeof setTimeout> | null = null;
+  const timeout = new Promise<T>((resolve) => {
+    timeoutId = setTimeout(() => resolve(buildFallback()), timeoutMs);
+  });
+
+  return Promise.race([
+    promise.finally(() => {
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
+    }),
+    timeout,
+  ]);
+}
+
 function useViewportMode() {
   const [isMobile, setIsMobile] = useState(false);
 
@@ -94,6 +111,7 @@ function buildCollectorCooldownMessage(status: CollectorStatusResponse): string 
 export function DashboardApp({
   apiBaseUrl,
   autoRefreshIntervalMs = DASHBOARD_AUTO_REFRESH_INTERVAL_MS,
+  flightStatusTimeoutMs = 6_000,
 }: DashboardAppProps) {
   const api = useMemo(() => buildApiClient(apiBaseUrl), [apiBaseUrl]);
   const mountedRef = useRef(false);
@@ -136,18 +154,21 @@ export function DashboardApp({
 
       if (showLoading) {
         setLoading(true);
+        setFlightStatus(null);
       }
       setError(null);
 
       try {
-        const flightStatusRequest = api
-          .getFlightStatus(airportCode)
-          .catch((caughtError) => buildFlightStatusError(airportCode, caughtError));
+        const flightStatusRequest = withTimeout(
+          api.getFlightStatus(airportCode).catch((caughtError) => buildFlightStatusError(airportCode, caughtError)),
+          flightStatusTimeoutMs,
+          () => buildFlightStatusError(airportCode, new Error("비행편 정보 응답이 지연되어 주차 현황을 먼저 표시합니다."))
+        );
         const holidaySummaryRequest = api.getHolidaySummary().catch(buildHolidaySummaryError);
         const holidayPatternsRequest = api
           .getHolidayPatterns(airportCode, { parkingLotId })
           .catch((caughtError) => buildHolidayPatternError(airportCode, parkingLotId, caughtError));
-        const [current, thresholds, thresholdDetail, weekdayHourly, holidays, holidayPatternDetail, timeseries, flights, status] = await Promise.all([
+        const [current, thresholds, thresholdDetail, weekdayHourly, holidays, holidayPatternDetail, timeseries, status] = await Promise.all([
           api.getCurrent(airportCode),
           api.getThresholdEvents(airportCode, parkingLotId),
           api.getThresholdInsights(airportCode, { parkingLotId }),
@@ -155,7 +176,6 @@ export function DashboardApp({
           holidaySummaryRequest,
           holidayPatternsRequest,
           api.getTimeSeries(airportCode, { parkingLotId }),
-          flightStatusRequest,
           api.getCollectorStatus(),
         ]);
         if (!mountedRef.current || loadRequestIdRef.current !== requestId) {
@@ -168,8 +188,12 @@ export function DashboardApp({
         setHolidaySummary(holidays);
         setHolidayPatterns(holidayPatternDetail);
         setTimeSeries(timeseries);
-        setFlightStatus(flights);
         setCollectorStatus(status);
+        void flightStatusRequest.then((flights) => {
+          if (mountedRef.current && loadRequestIdRef.current === requestId) {
+            setFlightStatus(flights);
+          }
+        });
       } catch (caughtError) {
         if (!mountedRef.current || loadRequestIdRef.current !== requestId) {
           return;
@@ -182,7 +206,7 @@ export function DashboardApp({
         }
       }
     },
-    [api]
+    [api, flightStatusTimeoutMs]
   );
 
   useEffect(() => {

@@ -133,6 +133,31 @@ curl -fsS -D - -o /dev/null https://pr.digitie.mywire.org/api/backend/airports
 - 두 응답 모두 `Cache-Control: no-store, max-age=0, must-revalidate`를 포함한다.
 - 백엔드 로그에 `/api/backend`를 통한 요청이 `200 OK`로 찍히면 백엔드 자체 장애보다 모바일의 이전 번들/캐시 문제를 먼저 의심한다.
 
+## 모바일에서 `데이터를 불러오는 중입니다`에 오래 머무를 때
+
+먼저 확인:
+
+1. `GET /api/backend/parking/current?airport_code=GMP`
+2. `GET /api/backend/flights/status?airport_code=GMP`
+3. 모바일 브라우저 개발자 도구 또는 서버 로그의 `/api/backend/*` 응답 시간
+
+자주 발생한 원인:
+
+- 주차 현황 API는 정상인데 비행편 API 응답이 10초 이상 지연됨
+- 프론트 초기 로딩이 비행편 API까지 한 번에 기다리면서 주차 현황도 같이 늦게 표시됨
+
+현재 기준:
+
+- 비행편 정보는 보조 데이터로 취급한다.
+- 초기 로딩은 주차 현황, 시계열, 분석 데이터를 먼저 표시한다.
+- 비행편 API는 별도 비동기 요청으로 처리하며 6초 이상 지연되면 지연 안내 상태를 표시한다.
+- 따라서 모바일에서 주차 현황 카드와 최근 7일 그래프가 먼저 나오고, 비행편 마커는 늦게 붙거나 일시적으로 비어 있을 수 있다.
+
+재발 점검:
+
+- 프론트 테스트 `shows parking data before delayed flight status finishes`가 통과해야 한다.
+- 새 데이터 소스를 초기 대시보드 `Promise.all`에 추가할 때, 보조 데이터라면 주차 현황 로딩을 막지 않도록 별도 요청이나 timeout fallback을 둔다.
+
 ## 웹 UI의 `지금 수집` 버튼이 동작하지 않거나 막힐 때
 
 먼저 확인:

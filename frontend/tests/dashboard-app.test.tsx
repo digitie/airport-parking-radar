@@ -265,6 +265,16 @@ describe("DashboardApp", () => {
     promptSpy.mockRestore();
   });
 
+  test("shows parking data before delayed flight status finishes", async () => {
+    apiClient.getFlightStatus.mockImplementationOnce(() => new Promise<FlightStatusResponse>(() => undefined));
+
+    render(<DashboardApp apiBaseUrl="http://localhost:8000" flightStatusTimeoutMs={20} />);
+
+    await screen.findByTestId("history-chart");
+    expect(screen.queryByText("데이터를 불러오는 중입니다.")).not.toBeInTheDocument();
+    expect(screen.getAllByText("지금 주차 여유").length).toBeGreaterThan(0);
+  });
+
   test("refreshes dashboard data automatically without a page reload", async () => {
     apiClient.getCurrent.mockResolvedValueOnce(currentPayload).mockResolvedValueOnce(refreshedCurrentPayload);
 

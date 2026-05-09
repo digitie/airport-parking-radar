@@ -88,6 +88,7 @@ docker compose run --rm --no-deps backend pytest -q
 - 하루 흐름 오버레이 차트의 공휴일 선/마커 구분 표시
 - 하루 흐름 오버레이 차트의 비행편 마커와 편명/출도착 정보 표시
 - 하루 흐름 오버레이 차트의 비행편 마커 hover / click 강조
+- 비행편 API 응답이 지연되거나 끝나지 않아도 주차 현황 로딩이 먼저 완료되는지 확인
 - 모바일 stale cache 방지를 위한 `/` 및 `/api/backend/*` no-store 응답 헤더
 - 요일 x 시간 히트맵
 - 공휴일 시간대 패턴 히트맵
