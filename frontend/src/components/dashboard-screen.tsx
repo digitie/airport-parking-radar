@@ -4,7 +4,7 @@ import type { CSSProperties, ReactNode } from "react";
 
 import { DailyFlightOverlayChart } from "@/components/daily-flight-overlay-chart";
 import { HistoryChart } from "@/components/history-chart";
-import { formatDateTimeWithZone, formatMinutesOfDay, formatNumber } from "@/lib/format";
+import { formatDateTime, formatMinutesOfDay, formatNumber } from "@/lib/format";
 import type {
   Airport,
   CollectorStatusResponse,
@@ -371,7 +371,7 @@ export function DashboardScreen({
           </button>
           {collectorStatus?.manual_collect_available_at ? (
             <p className="action-hint">
-              다음 수동 수집 가능: {formatDateTimeWithZone(collectorStatus.manual_collect_available_at)}
+              다음 수동 수집 가능: {formatDateTime(collectorStatus.manual_collect_available_at)}
             </p>
           ) : null}
         </div>
@@ -381,8 +381,8 @@ export function DashboardScreen({
         <div>
           <h2>{selectedAirport?.name_ko ?? "공항"}</h2>
           <div className="status-meta">
-            <span>데이터 기준 시각: {latestObservedAt ? formatDateTimeWithZone(latestObservedAt) : "데이터 없음"}</span>
-            {latestSyncedAt ? <span>수집기 마지막 동기화: {formatDateTimeWithZone(latestSyncedAt)}</span> : null}
+            <span>데이터 기준 시각: {latestObservedAt ? formatDateTime(latestObservedAt) : "데이터 없음"}</span>
+            {latestSyncedAt ? <span>수집기 마지막 동기화: {formatDateTime(latestSyncedAt)}</span> : null}
             {holidaySummary ? <span className="holiday-sentence">{holidaySummary.sentence}</span> : null}
           </div>
         </div>
@@ -439,21 +439,16 @@ export function DashboardScreen({
                   <h3>{item.parking_lot_name}</h3>
                   <p>{item.terminal ?? "터미널 정보 없음"}</p>
                 </div>
-                <span className="pill">{statusLabel(item.status_level)}</span>
               </div>
               <div className="lot-card-stats">
                 <div>
-                  <span>잔여</span>
-                  <strong>{formatNumber(item.available_spaces)}대</strong>
-                </div>
-                <div>
-                  <span>점유/전체</span>
+                  <span>잔여/전체</span>
                   <strong>
-                    {formatNumber(item.occupied_spaces)}/{formatNumber(item.total_spaces)}
+                    {formatNumber(item.available_spaces)}/{formatNumber(item.total_spaces)}대
                   </strong>
                 </div>
               </div>
-              <p className="stamp">기준 시각 {formatDateTimeWithZone(item.observed_at)}</p>
+              <p className="stamp">기준 시각 {formatDateTime(item.observed_at)}</p>
             </article>
           ))}
         </section>
@@ -463,9 +458,7 @@ export function DashboardScreen({
             <thead>
               <tr>
                 <th>주차장</th>
-                <th>상태</th>
-                <th>잔여</th>
-                <th>점유/전체</th>
+                <th>잔여/전체</th>
                 <th>기준 시각</th>
               </tr>
             </thead>
@@ -477,13 +470,9 @@ export function DashboardScreen({
                     <span>{item.terminal ?? "터미널 정보 없음"}</span>
                   </td>
                   <td>
-                    <span className={`pill ${statusTone(item.status_level)}`}>{statusLabel(item.status_level)}</span>
+                    {formatNumber(item.available_spaces)}/{formatNumber(item.total_spaces)}대
                   </td>
-                  <td>{formatNumber(item.available_spaces)}대</td>
-                  <td>
-                    {formatNumber(item.occupied_spaces)}/{formatNumber(item.total_spaces)}
-                  </td>
-                  <td>{formatDateTimeWithZone(item.observed_at)}</td>
+                  <td>{formatDateTime(item.observed_at)}</td>
                 </tr>
               ))}
             </tbody>
@@ -500,8 +489,8 @@ export function DashboardScreen({
 
         <ResponsiveSection
           isMobile={isMobile}
-          summary="출도착 마커와 하루 0-24시 흐름"
-          title="비행편 흐름"
+          summary={`최근 7일 · ${scopeLabel}`}
+          title="일단위 잔여 주차면 변화"
         >
           <DailyFlightOverlayChart
             flightStatus={flightStatus}
@@ -519,41 +508,22 @@ export function DashboardScreen({
             <p className="notice">표시할 요일별 시간대 데이터가 없습니다.</p>
           ) : (
             <>
-              <div className="pattern-summary-strip">
-                <div className="pattern-summary-card">
-                  <span>평균으로 가장 빠듯</span>
-                  <strong>
-                    {averageAvailabilitySummary.tightest
-                      ? `${averageAvailabilitySummary.tightest.weekdayName} ${formatHourLabel(averageAvailabilitySummary.tightest.hour)}`
-                      : "-"}
-                  </strong>
-                  <small>
-                    {averageAvailabilitySummary.tightest
-                      ? `평균 ${formatNumber(Math.round(averageAvailabilitySummary.tightest.value))}대`
-                      : "데이터 없음"}
-                  </small>
-                </div>
-                <div className="pattern-summary-card">
-                  <span>평균으로 가장 여유</span>
-                  <strong>
-                    {averageAvailabilitySummary.roomiest
-                      ? `${averageAvailabilitySummary.roomiest.weekdayName} ${formatHourLabel(averageAvailabilitySummary.roomiest.hour)}`
-                      : "-"}
-                  </strong>
-                  <small>
-                    {averageAvailabilitySummary.roomiest
-                      ? `평균 ${formatNumber(Math.round(averageAvailabilitySummary.roomiest.value))}대`
-                      : "데이터 없음"}
-                  </small>
-                </div>
-                <div className="pattern-summary-card pattern-summary-legend">
-                  <span>색상 범례</span>
-                  <div className="availability-legend">
-                    <small>적음</small>
-                    <div className="availability-gradient" />
-                    <small>많음</small>
+              <div className="pattern-summary-strip pattern-summary-strip-compact">
+                <div className="pattern-summary-card pattern-summary-card-wide">
+                  <div className="pattern-summary-lines">
+                    <span>
+                      <strong>최고 혼잡</strong> :{" "}
+                      {averageAvailabilitySummary.tightest
+                        ? `${averageAvailabilitySummary.tightest.weekdayName} ${formatHourLabel(averageAvailabilitySummary.tightest.hour)} 평균 ${formatNumber(Math.round(averageAvailabilitySummary.tightest.value))}대`
+                        : "데이터 없음"}
+                    </span>
+                    <span>
+                      <strong>최저 혼잡</strong> :{" "}
+                      {averageAvailabilitySummary.roomiest
+                        ? `${averageAvailabilitySummary.roomiest.weekdayName} ${formatHourLabel(averageAvailabilitySummary.roomiest.hour)} 평균 ${formatNumber(Math.round(averageAvailabilitySummary.roomiest.value))}대`
+                        : "데이터 없음"}
+                    </span>
                   </div>
-                  <small>{scopeLabel} 기준 평균 잔여 주차면</small>
                 </div>
               </div>
 
@@ -623,13 +593,13 @@ export function DashboardScreen({
                         </div>
                         <div className="weekday-detail-summary">
                           <span>
-                            가장 빠듯함{" "}
+                            최고 혼잡{" "}
                             {tightestHour?.average_available_spaces !== null && tightestHour
                               ? `${formatHourLabel(tightestHour.hour)} ${formatNumber(Math.round(tightestHour.average_available_spaces))}대`
                               : "-"}
                           </span>
                           <span>
-                            가장 여유{" "}
+                            최저 혼잡{" "}
                             {loosestHour?.average_available_spaces !== null && loosestHour
                               ? `${formatHourLabel(loosestHour.hour)} ${formatNumber(Math.round(loosestHour.average_available_spaces))}대`
                               : "-"}
@@ -738,13 +708,13 @@ export function DashboardScreen({
                         </div>
                         <div className="holiday-extreme-row">
                           <span>
-                            가장 빠듯함{" "}
+                            최고 혼잡{" "}
                             {tightestHour?.average_available_spaces !== null && tightestHour
                               ? `${formatHourLabel(tightestHour.hour)} ${formatNumber(Math.round(tightestHour.average_available_spaces))}대`
                               : "-"}
                           </span>
                           <span>
-                            가장 여유{" "}
+                            최저 혼잡{" "}
                             {loosestHour?.average_available_spaces !== null && loosestHour
                               ? `${formatHourLabel(loosestHour.hour)} ${formatNumber(Math.round(loosestHour.average_available_spaces))}대`
                               : "-"}
@@ -854,7 +824,7 @@ export function DashboardScreen({
                     <li key={`${event.parking_lot_id}-${event.threshold}-${event.crossed_at}-${event.direction}`}>
                       <div>
                         <strong>{event.parking_lot_name}</strong>
-                        <span>{formatDateTimeWithZone(event.crossed_at)}</span>
+                        <span>{formatDateTime(event.crossed_at)}</span>
                       </div>
                       <p>
                         {formatNumber(event.threshold)}대{" "}

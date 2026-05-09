@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 
 import {
   formatAxisTimeLabel,
-  formatDateTimeWithZone,
+  formatDateTime,
   formatNumber,
   formatSeoulDateKey,
   getSeoulDateParts,
@@ -133,7 +133,7 @@ function formatFlightDirection(direction: FlightStatusItem["direction"]): string
 function buildFlightLabel(flight: FlightStatusItem): string {
   const statusLabel = flight.status ? ` (${flight.status})` : "";
   const airlineLabel = flight.airline ? `${flight.airline} ` : "";
-  return `${formatDateTimeWithZone(flight.marker_at)} ${formatFlightDirection(flight.direction)} ${airlineLabel}${flight.flight_number} ${flight.origin_airport} -> ${flight.destination_airport}${statusLabel}`;
+  return `${formatDateTime(flight.marker_at)} ${formatFlightDirection(flight.direction)} ${airlineLabel}${flight.flight_number} ${flight.origin_airport} -> ${flight.destination_airport}${statusLabel}`;
 }
 
 function buildFlightMarkers(flightStatus: FlightStatusResponse | null): FlightMarker[] {
@@ -210,10 +210,9 @@ export function DailyFlightOverlayChart({
     <article className="panel-surface panel-full-span daily-overlay-panel">
       <div className="panel-head">
         <div>
-          <h3>하루 흐름과 비행편</h3>
-          <p>0시부터 24시까지 최근 7일 잔여 주차면을 겹쳐 봅니다.</p>
+          <h3>일단위 잔여 주차면 변화</h3>
+          <p>최근 7일 · {scopeLabel}</p>
         </div>
-        <p className="section-hint">{scopeLabel}</p>
       </div>
 
       {dailyLines.length === 0 ? (
@@ -278,7 +277,7 @@ export function DailyFlightOverlayChart({
               ) : null}
 
               <svg
-                aria-label={`최근 7일 ${scopeLabel} 하루 흐름과 비행편`}
+                aria-label={`최근 7일 ${scopeLabel} 일단위 잔여 주차면 변화`}
                 className="daily-overlay-chart"
                 role="img"
                 viewBox={`0 0 ${CHART_WIDTH} ${CHART_HEIGHT}`}
@@ -365,8 +364,6 @@ export function DailyFlightOverlayChart({
           </div>
 
           <div className="daily-overlay-legend">
-            <span>실선: 일반일</span>
-            <span>점선/사각 마커: 공휴일</span>
             <span>
               비행편: 출발 {formatNumber(departureCount)}편 / 도착 {formatNumber(arrivalCount)}편
             </span>

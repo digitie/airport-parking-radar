@@ -233,7 +233,7 @@ describe("DashboardApp", () => {
     await user.click(screen.getByTestId("manual-collect-button"));
 
     expect(
-      await screen.findByText("마지막 업데이트 후 20분이 지나지 않았습니다. 04.26 09:30 KST 이후 다시 시도해 주세요.")
+      await screen.findByText("마지막 업데이트 후 20분이 지나지 않았습니다. 04.26 09:30 이후 다시 시도해 주세요.")
     ).toBeInTheDocument();
   });
 
@@ -276,7 +276,7 @@ describe("DashboardApp", () => {
   });
 
   test("refreshes dashboard data automatically without a page reload", async () => {
-    apiClient.getCurrent.mockResolvedValueOnce(currentPayload).mockResolvedValueOnce(refreshedCurrentPayload);
+    apiClient.getCurrent.mockResolvedValueOnce(currentPayload).mockResolvedValue(refreshedCurrentPayload);
 
     render(<DashboardApp apiBaseUrl="http://localhost:8000" autoRefreshIntervalMs={20} />);
 
@@ -287,7 +287,7 @@ describe("DashboardApp", () => {
       expect(apiClient.getCurrent.mock.calls.length).toBeGreaterThanOrEqual(2);
     });
     await waitFor(() => {
-      expect(screen.getAllByText("64대").length).toBeGreaterThan(0);
+      expect(screen.getAllByText((_, element) => element?.textContent === "64/200대").length).toBeGreaterThan(0);
     });
     expect(screen.queryByText("데이터를 불러오는 중입니다.")).not.toBeInTheDocument();
   });

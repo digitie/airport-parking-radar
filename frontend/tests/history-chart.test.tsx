@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
 
 import { HistoryChart } from "@/components/history-chart";
-import { formatDateTimeWithZone } from "@/lib/format";
+import { formatDateTime } from "@/lib/format";
 import type { HolidayItemSummary, ParkingTimeSeriesResponse } from "@/lib/types";
 
 function buildSeries(): ParkingTimeSeriesResponse {
@@ -53,7 +53,7 @@ describe("HistoryChart", () => {
     expect(tooltip).toBeInTheDocument();
     expect(within(tooltip).getByText("124\uB300")).toBeInTheDocument();
     expect(
-      within(tooltip).getByText(formatDateTimeWithZone(buildSeries().items[24].bucket_at))
+      within(tooltip).getByText(formatDateTime(buildSeries().items[24].bucket_at))
     ).toBeInTheDocument();
   });
 
@@ -89,7 +89,7 @@ describe("HistoryChart", () => {
     const tooltip = screen.getByTestId("history-tooltip");
     expect(tooltip).toBeInTheDocument();
     expect(within(tooltip).getByText("112\uB300")).toBeInTheDocument();
-    expect(within(tooltip).getByText(formatDateTimeWithZone(series.items[12].bucket_at))).toBeInTheDocument();
+    expect(within(tooltip).getByText(formatDateTime(series.items[12].bucket_at))).toBeInTheDocument();
   });
 
   test("keeps flight markers out of the recent parking chart", () => {

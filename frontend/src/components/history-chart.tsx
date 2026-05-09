@@ -5,7 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import {
   formatAxisDateLabel,
   formatAxisTimeLabel,
-  formatDateTimeWithZone,
+  formatDateTime,
   formatNumber,
   formatSeoulDateKey,
   getSeoulDateParts,
@@ -163,17 +163,6 @@ function buildHolidayBands(holidays: HolidayItemSummary[], points: ChartPoint[],
   });
 }
 
-function findLowestPoint(points: TimeSeriesPoint[]): TimeSeriesPoint {
-  return points.reduce((lowest, point) => (point.available_spaces < lowest.available_spaces ? point : lowest), points[0]);
-}
-
-function findHighestPoint(points: TimeSeriesPoint[]): TimeSeriesPoint {
-  return points.reduce(
-    (highest, point) => (point.available_spaces > highest.available_spaces ? point : highest),
-    points[0]
-  );
-}
-
 export function HistoryChart({ holidays, series, scopeLabel }: HistoryChartProps) {
   const [activePointIndex, setActivePointIndex] = useState<number | null>(null);
   const scrollRef = useRef<HTMLDivElement | null>(null);
@@ -230,11 +219,8 @@ export function HistoryChart({ holidays, series, scopeLabel }: HistoryChartProps
   const axisMarkers = buildAxisMarkers(chartPoints, labelIndexes);
   const holidayBands = buildHolidayBands(holidays, chartPoints, chartWidth);
   const latestPoint = observedPoints[observedPoints.length - 1];
-  const lowestPoint = findLowestPoint(observedPoints);
-  const highestPoint = findHighestPoint(observedPoints);
   const chartPointByBucket = new Map(chartPoints.map((point) => [point.bucket_at, point] as const));
   const latestChartPoint = chartPointByBucket.get(latestPoint.bucket_at);
-  const lowestChartPoint = chartPointByBucket.get(lowestPoint.bucket_at);
   const defaultActivePointIndex = Math.max(
     chartPoints.findIndex((point) => point.bucket_at === latestPoint.bucket_at),
     0
@@ -267,28 +253,13 @@ export function HistoryChart({ holidays, series, scopeLabel }: HistoryChartProps
           <h3>최근 {series.days}일 잔여 주차면</h3>
           <p className="history-scope">기준: {scopeLabel}</p>
         </div>
-        <p className="section-hint">마지막 관측 {formatDateTimeWithZone(latestPoint.bucket_at)}</p>
+        <p className="section-hint">마지막 관측 {formatDateTime(latestPoint.bucket_at)}</p>
       </div>
 
-      <div className="history-summary">
+      <div className="history-summary history-summary-compact">
         <div className="summary-chip">
           <span>지금 주차 여유</span>
           <strong>{formatNumber(latestPoint.available_spaces)}대</strong>
-        </div>
-        <div className="summary-chip">
-          <span>최근 7일 최저</span>
-          <strong>{formatNumber(lowestPoint.available_spaces)}대</strong>
-          <small>{formatDateTimeWithZone(lowestPoint.bucket_at)}</small>
-        </div>
-        <div className="summary-chip">
-          <span>최근 7일 최고</span>
-          <strong>{formatNumber(highestPoint.available_spaces)}대</strong>
-          <small>{formatDateTimeWithZone(highestPoint.bucket_at)}</small>
-        </div>
-        <div className="summary-chip">
-          <span>보는 기준</span>
-          <strong>{scopeLabel}</strong>
-          <small>{series.interval_minutes}분 간격</small>
         </div>
       </div>
 
@@ -304,7 +275,7 @@ export function HistoryChart({ holidays, series, scopeLabel }: HistoryChartProps
                 <strong>
                   {activePoint.lot_observations > 0 ? `${formatNumber(activePoint.available_spaces)}대` : "주차 정보 없음"}
                 </strong>
-                <span>{formatDateTimeWithZone(activePoint.bucket_at)}</span>
+                <span>{formatDateTime(activePoint.bucket_at)}</span>
               </div>
             ) : null}
 
@@ -379,9 +350,6 @@ export function HistoryChart({ holidays, series, scopeLabel }: HistoryChartProps
                     <circle className="history-point active" cx={activePoint.x} cy={activePoint.y} r="6" />
                   ) : null}
                 </>
-              ) : null}
-              {lowestChartPoint ? (
-                <circle className="history-point lowest" cx={lowestChartPoint.x} cy={lowestChartPoint.y} r="5" />
               ) : null}
               {latestChartPoint ? (
                 <circle className="history-point latest" cx={latestChartPoint.x} cy={latestChartPoint.y} r="5" />

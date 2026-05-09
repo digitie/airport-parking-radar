@@ -1,4 +1,5 @@
 :root {
+  color-scheme: light;
   --bg: #f6f2ea;
   --surface: rgba(255, 252, 247, 0.8);
   --surface-strong: #fff9f0;
@@ -12,6 +13,11 @@
   --yellow: #d9a230;
   --shadow: 0 20px 40px rgba(55, 41, 18, 0.08);
   --radius: 18px;
+  --input-bg: rgba(255, 255, 255, 0.9);
+  --input-border: rgba(31, 37, 48, 0.14);
+  --grid-line: rgba(31, 37, 48, 0.09);
+  --sticky-bg: #f4ecdf;
+  --sticky-shadow: rgba(246, 242, 234, 0.88);
   --font-ui: "Segoe UI", "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
   --font-mono: "JetBrains Mono", "Consolas", monospace;
 }
@@ -21,17 +27,41 @@
 }
 
 html {
-  background:
-    radial-gradient(circle at top left, rgba(212, 106, 31, 0.15), transparent 36%),
-    radial-gradient(circle at top right, rgba(12, 139, 125, 0.12), transparent 32%),
-    var(--bg);
+  max-width: 100%;
+  overflow-x: hidden;
+  background: var(--bg);
 }
 
 body {
+  max-width: 100%;
+  overflow-x: hidden;
   margin: 0;
   color: var(--ink);
   font-family: var(--font-ui);
   background: transparent;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    color-scheme: dark;
+    --bg: #101217;
+    --surface: rgba(27, 31, 39, 0.92);
+    --surface-strong: #202633;
+    --ink: #f4f6fb;
+    --muted: #b9c1d0;
+    --line: rgba(255, 255, 255, 0.14);
+    --accent: #f19a48;
+    --accent-soft: rgba(241, 154, 72, 0.18);
+    --teal: #39d1bf;
+    --red: #ff8b80;
+    --yellow: #f0c45a;
+    --shadow: 0 20px 40px rgba(0, 0, 0, 0.22);
+    --input-bg: #171c25;
+    --input-border: rgba(255, 255, 255, 0.18);
+    --grid-line: rgba(255, 255, 255, 0.12);
+    --sticky-bg: #252b36;
+    --sticky-shadow: rgba(16, 18, 23, 0.95);
+  }
 }
 
 button,
@@ -136,8 +166,8 @@ select {
   min-height: 46px;
   padding: 0 14px;
   border-radius: 12px;
-  border: 1px solid rgba(31, 37, 48, 0.14);
-  background: rgba(255, 255, 255, 0.9);
+  border: 1px solid var(--input-border);
+  background: var(--input-bg);
   color: var(--ink);
 }
 
@@ -335,6 +365,16 @@ select {
   padding: 18px 0 36px;
 }
 
+.analytics-grid > *,
+.panel-surface,
+.table-surface,
+.history-panel,
+.daily-overlay-panel,
+.mobile-disclosure,
+.mobile-disclosure-body {
+  min-width: 0;
+}
+
 .history-panel {
   grid-column: 1 / -1;
 }
@@ -348,6 +388,10 @@ select {
   gap: 12px;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   margin-bottom: 18px;
+}
+
+.history-summary-compact {
+  grid-template-columns: minmax(0, 220px);
 }
 
 .summary-chip {
@@ -376,7 +420,8 @@ select {
 }
 
 .history-chart-shell {
-  overflow-x: auto;
+  max-width: 100%;
+  overflow-x: hidden;
   padding-top: 10px;
 }
 
@@ -406,7 +451,7 @@ select {
 
 .history-grid-line,
 .history-divider {
-  stroke: rgba(31, 37, 48, 0.09);
+  stroke: var(--grid-line);
   stroke-width: 1;
 }
 
@@ -687,7 +732,7 @@ select {
 
 .daily-overlay-controls {
   display: grid;
-  gap: 12px;
+  gap: 10px;
   grid-template-columns: 1fr auto;
   margin-bottom: 14px;
 }
@@ -697,15 +742,16 @@ select {
 .daily-overlay-legend {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: 10px;
 }
 
 .daily-date-toggle {
-  min-height: 44px;
-  padding: 8px 11px;
-  border-radius: 12px;
-  border: 1px solid rgba(31, 37, 48, 0.14);
-  background: var(--surface-strong);
+  min-height: 30px;
+  padding: 2px 0 4px;
+  border: 0;
+  border-bottom: 2px solid currentColor;
+  border-radius: 0;
+  background: transparent;
   color: var(--ink);
   cursor: pointer;
   text-align: left;
@@ -723,30 +769,33 @@ select {
 }
 
 .daily-date-toggle.holiday {
-  border-color: rgba(37, 99, 235, 0.24);
+  color: #1d4ed8;
 }
 
 .daily-date-toggle.is-off {
   opacity: 0.42;
   text-decoration: line-through;
+  border-bottom-color: transparent;
 }
 
 .toggle-check {
   display: inline-flex;
   align-items: center;
   gap: 7px;
-  min-height: 40px;
-  padding: 7px 10px;
-  border: 1px solid rgba(31, 37, 48, 0.12);
-  border-radius: 12px;
-  background: var(--surface-strong);
+  min-height: 30px;
+  padding: 2px 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
   color: var(--ink);
   font-size: 0.84rem;
   font-weight: 650;
 }
 
 .daily-overlay-chart-shell {
+  max-width: 100%;
   overflow-x: auto;
+  overscroll-behavior-x: contain;
   padding-top: 10px;
 }
 
@@ -901,7 +950,9 @@ select {
 }
 
 .heatmap-scroll {
+  max-width: 100%;
   overflow-x: auto;
+  overscroll-behavior-x: contain;
 }
 
 .pattern-summary-strip {
@@ -909,6 +960,10 @@ select {
   gap: 12px;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   margin-bottom: 16px;
+}
+
+.pattern-summary-strip-compact {
+  grid-template-columns: minmax(0, 1fr);
 }
 
 .pattern-summary-card {
@@ -928,6 +983,28 @@ select {
   display: block;
   margin: 6px 0 4px;
   font-size: 1.12rem;
+}
+
+.pattern-summary-card-wide {
+  padding: 12px 14px;
+}
+
+.pattern-summary-lines {
+  display: grid;
+  gap: 6px;
+  color: var(--ink);
+  font-size: 0.95rem;
+  line-height: 1.35;
+}
+
+.pattern-summary-lines span {
+  color: var(--ink);
+}
+
+.pattern-summary-lines strong {
+  display: inline;
+  margin: 0;
+  font-size: inherit;
 }
 
 .availability-legend {
@@ -1467,6 +1544,10 @@ select {
     margin-bottom: 12px;
   }
 
+  .history-summary-compact {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
   .summary-chip {
     padding: 10px;
     border-radius: 12px;
@@ -1476,16 +1557,14 @@ select {
     font-size: 1.05rem;
   }
 
-  .summary-chip:nth-child(4) {
-    display: none;
-  }
-
   .history-chart-shell,
   .daily-overlay-chart-shell,
   .heatmap-scroll,
   .threshold-table-wrap {
-    margin-inline: -14px;
-    padding-inline: 14px;
+    width: 100%;
+    max-width: 100%;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
   }
 
   .daily-overlay-controls {
@@ -1532,7 +1611,7 @@ select {
     position: sticky;
     left: 0;
     z-index: 2;
-    box-shadow: 8px 0 12px rgba(246, 242, 234, 0.88);
+    box-shadow: 8px 0 12px var(--sticky-shadow);
   }
 
   .heatmap-table thead th:first-child {
@@ -1540,7 +1619,7 @@ select {
   }
 
   .heatmap-table tbody th {
-    background: #f4ecdf;
+    background: var(--sticky-bg);
   }
 
   .weekday-pattern-grid,
@@ -1552,6 +1631,18 @@ select {
   .weekday-detail-card {
     padding: 12px;
     border-radius: 12px;
+  }
+
+  .hour-chip-grid {
+    display: flex;
+    gap: 8px;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    padding-bottom: 4px;
+  }
+
+  .hour-chip {
+    flex: 0 0 76px;
   }
 
   .weekday-detail-head {
@@ -1601,6 +1692,10 @@ select {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
+  .history-summary-compact {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
   .history-tooltip {
     min-width: 124px;
     max-width: 150px;
@@ -1615,7 +1710,6 @@ select {
 
   .hour-chip-grid {
     gap: 6px;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
   }
 
   .hour-chip {
@@ -1635,5 +1729,78 @@ select {
 
   .action-stack {
     grid-template-columns: 1fr;
+  }
+}
+
+@media (prefers-color-scheme: dark) {
+  .summary-chip,
+  .pattern-summary-card,
+  .weekday-detail-card,
+  .weekday-chip,
+  .quote-box,
+  .flight-chip,
+  .lot-card,
+  .table-surface,
+  .panel-surface,
+  .metric-card,
+  .spotlight,
+  .control-band {
+    border-color: var(--line);
+  }
+
+  .notice,
+  .mobile-disclosure summary,
+  .history-tooltip,
+  .flight-highlight-label {
+    background: rgba(31, 36, 46, 0.96);
+    border-color: var(--line);
+  }
+
+  .mobile-disclosure summary::after,
+  .pill {
+    background: rgba(255, 255, 255, 0.1);
+  }
+
+  .button.secondary {
+    background: linear-gradient(135deg, #2e3746, #465266);
+  }
+
+  .tone-full,
+  .tone-critical {
+    background: rgba(255, 139, 128, 0.14);
+    color: var(--red);
+  }
+
+  .tone-warning {
+    background: rgba(240, 196, 90, 0.16);
+    color: var(--yellow);
+  }
+
+  .tone-busy {
+    background: rgba(241, 154, 72, 0.16);
+    color: var(--accent);
+  }
+
+  .tone-stable {
+    background: rgba(57, 209, 191, 0.14);
+    color: var(--teal);
+  }
+
+  .heatmap-table td,
+  .hour-chip {
+    background: rgba(255, 255, 255, 0.08);
+  }
+
+  .holiday-band-label,
+  .daily-date-toggle.holiday,
+  .daily-date-toggle small {
+    color: #8ab4ff;
+    fill: #8ab4ff;
+  }
+
+  .history-point,
+  .daily-holiday-marker,
+  .flight-marker-dot {
+    fill: var(--surface-strong);
   }
 }

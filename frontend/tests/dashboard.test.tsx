@@ -282,13 +282,16 @@ describe("DashboardScreen", () => {
     expect(screen.getByTestId("threshold-history-scroll")).toBeInTheDocument();
     expect(screen.getByTestId("weekday-hour-cell-0-9")).toHaveTextContent("18");
     expect(screen.getByRole("button", { name: "즉시 수집 실행" })).toBeInTheDocument();
-    expect(screen.getByText("데이터 기준 시각: 04.25 09:20 KST")).toBeInTheDocument();
-    expect(screen.getByText("수집기 마지막 동기화: 04.25 09:30 KST")).toBeInTheDocument();
-    expect(screen.getByText("평균으로 가장 빠듯")).toBeInTheDocument();
-    expect(screen.getByText("색상 범례")).toBeInTheDocument();
+    expect(screen.getByText("데이터 기준 시각: 04.25 09:20")).toBeInTheDocument();
+    expect(screen.getByText("수집기 마지막 동기화: 04.25 09:30")).toBeInTheDocument();
+    expect(screen.queryByRole("columnheader", { name: "상태" })).not.toBeInTheDocument();
+    expect(screen.getByRole("columnheader", { name: "잔여/전체" })).toBeInTheDocument();
+    expect(screen.getAllByText("최고 혼잡").length).toBeGreaterThan(0);
+    expect(screen.queryByText("평균으로 가장 빠듯")).not.toBeInTheDocument();
+    expect(screen.queryByText("색상 범례")).not.toBeInTheDocument();
     expect(screen.getByText("5/5 (화) 어린이날 입니다.")).toBeInTheDocument();
     expect(screen.queryByText("출발 전에 보는 공항 주차 레이더")).not.toBeInTheDocument();
-    expect(screen.queryByText("최근 수집 시각: 04.25 09:30 KST")).not.toBeInTheDocument();
+    expect(screen.queryByText("최근 수집 시각: 04.25 09:30")).not.toBeInTheDocument();
   });
 
   test("renders mobile cards in mobile mode", () => {
@@ -326,7 +329,8 @@ describe("DashboardScreen", () => {
     expect(screen.queryByTestId("desktop-lot-table")).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "즉시 수집 실행" })).toBeInTheDocument();
     expect(screen.getAllByText("국내선 제1주차장").length).toBeGreaterThan(0);
-    expect(screen.getByText("비행편 흐름")).toBeInTheDocument();
+    expect(screen.getAllByText("잔여/전체").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("일단위 잔여 주차면 변화").length).toBeGreaterThan(0);
     expect(screen.getByText("요일별 상세 패턴")).toBeInTheDocument();
     expect(screen.getAllByTestId("mobile-disclosure").length).toBeGreaterThanOrEqual(4);
   });

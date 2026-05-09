@@ -9,7 +9,7 @@ import {
   readStoredDashboardSelection,
   writeStoredDashboardSelection,
 } from "@/lib/dashboard-preferences";
-import { formatDateTimeWithZone } from "@/lib/format";
+import { formatDateTime } from "@/lib/format";
 import type {
   Airport,
   CollectorStatusResponse,
@@ -103,7 +103,7 @@ function useViewportMode() {
 function buildCollectorCooldownMessage(status: CollectorStatusResponse): string {
   const cooldownMinutes = Math.max(1, Math.round(status.manual_collect_min_interval_seconds / 60));
   if (status.manual_collect_available_at) {
-    return `마지막 업데이트 후 ${cooldownMinutes}분이 지나지 않았습니다. ${formatDateTimeWithZone(status.manual_collect_available_at)} 이후 다시 시도해 주세요.`;
+    return `마지막 업데이트 후 ${cooldownMinutes}분이 지나지 않았습니다. ${formatDateTime(status.manual_collect_available_at)} 이후 다시 시도해 주세요.`;
   }
   return `마지막 업데이트 후 ${cooldownMinutes}분이 지나지 않았습니다. 잠시 후 다시 시도해 주세요.`;
 }
