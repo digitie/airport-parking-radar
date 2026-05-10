@@ -55,6 +55,22 @@ from app.services.analytics import (
     classify_status_level,
     detect_threshold_events,
 )
+from app.services.analytics_cache import (
+    DEFAULT_THRESHOLD_EVENTS_DAYS,
+    DEFAULT_THRESHOLD_EVENTS_LIMIT,
+    DEFAULT_THRESHOLD_INSIGHTS_DAYS,
+    DEFAULT_THRESHOLD_INSIGHTS_INTERVAL_MINUTES,
+    DEFAULT_TIMESERIES_DAYS,
+    DEFAULT_TIMESERIES_FUTURE_HOURS,
+    DEFAULT_TIMESERIES_INTERVAL_MINUTES,
+    DEFAULT_WEEKDAY_HOUR_DAYS,
+    METRIC_THRESHOLD_EVENTS,
+    METRIC_THRESHOLD_INSIGHTS,
+    METRIC_TIMESERIES,
+    METRIC_WEEKDAY_HOUR,
+    load_cached_analytics,
+    refresh_default_analytics_cache,
+)
 from app.services.collection import CollectionService
 from app.services.fee_calculator import calculate_total_fee
 from app.services.flight_status import FlightStatusService
@@ -82,6 +98,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         if resolved_settings.seed_sample_data and app.state.collection_service.client_mode == "sample":
             async with session_factory() as session:
                 await seed_sample_database(session)
+                await refresh_default_analytics_cache(session, resolved_settings)
+                await session.commit()
         elif resolved_settings.seed_sample_data:
             logger.info("sample seeding skipped because client_mode=%s", app.state.collection_service.client_mode)
 
@@ -300,6 +318,17 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         days: int = Query(default=14, ge=1, le=60),
         session: AsyncSession = Depends(get_db),
     ) -> list[WeekdayHourlyPattern]:
+        if airport_code and days == DEFAULT_WEEKDAY_HOUR_DAYS:
+            cached = await load_cached_analytics(
+                session,
+                metric=METRIC_WEEKDAY_HOUR,
+                airport_code=airport_code,
+                parking_lot_id=parking_lot_id,
+                days=days,
+            )
+            if cached is not None:
+                return [WeekdayHourlyPattern(**pattern) for pattern in cached]
+
         snapshots = await _load_snapshots(session, airport_code, parking_lot_id, days)
         return [WeekdayHourlyPattern(**pattern) for pattern in build_weekday_hour_patterns(snapshots)]
 
@@ -312,6 +341,24 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         future_hours: int = Query(default=0, ge=0, le=12),
         session: AsyncSession = Depends(get_db),
     ) -> ParkingTimeSeriesResponse:
+        if (
+            airport_code
+            and days == DEFAULT_TIMESERIES_DAYS
+            and interval_minutes == DEFAULT_TIMESERIES_INTERVAL_MINUTES
+            and future_hours == DEFAULT_TIMESERIES_FUTURE_HOURS
+        ):
+            cached = await load_cached_analytics(
+                session,
+                metric=METRIC_TIMESERIES,
+                airport_code=airport_code,
+                parking_lot_id=parking_lot_id,
+                days=days,
+                interval_minutes=interval_minutes,
+                future_hours=future_hours,
+            )
+            if cached is not None:
+                return ParkingTimeSeriesResponse(**cached)
+
         snapshots = await _load_snapshots(
             session,
             airport_code,
@@ -428,6 +475,18 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         limit: int = Query(default=20, ge=1, le=100),
         session: AsyncSession = Depends(get_db),
     ) -> list[ThresholdEvent]:
+        if airport_code and days == DEFAULT_THRESHOLD_EVENTS_DAYS and limit == DEFAULT_THRESHOLD_EVENTS_LIMIT:
+            cached = await load_cached_analytics(
+                session,
+                metric=METRIC_THRESHOLD_EVENTS,
+                airport_code=airport_code,
+                parking_lot_id=parking_lot_id,
+                days=days,
+                limit=limit,
+            )
+            if cached is not None:
+                return [ThresholdEvent(**event) for event in cached]
+
         rows = await _load_snapshot_rows(session, airport_code, parking_lot_id, days)
         return [
             ThresholdEvent(**{**event, "crossed_at": serialize_utc(event["crossed_at"])})
@@ -442,6 +501,22 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         interval_minutes: int = Query(default=10, ge=10, le=60),
         session: AsyncSession = Depends(get_db),
     ) -> ThresholdInsightsResponse:
+        if (
+            airport_code
+            and days == DEFAULT_THRESHOLD_INSIGHTS_DAYS
+            and interval_minutes == DEFAULT_THRESHOLD_INSIGHTS_INTERVAL_MINUTES
+        ):
+            cached = await load_cached_analytics(
+                session,
+                metric=METRIC_THRESHOLD_INSIGHTS,
+                airport_code=airport_code,
+                parking_lot_id=parking_lot_id,
+                days=days,
+                interval_minutes=interval_minutes,
+            )
+            if cached is not None:
+                return ThresholdInsightsResponse(**cached)
+
         snapshots = await _load_snapshots(
             session,
             airport_code,
@@ -545,6 +620,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                     ),
                 )
         summary = await service.collect(session, trigger="manual")
+        if summary["snapshot_count"] > 0:
+            await refresh_default_analytics_cache(session, resolved_settings)
+            await session.commit()
         if summary["status"] == "failed":
             rate_limit_state = await service.get_upstream_rate_limit_state(session)
             if rate_limit_state.is_blocked and rate_limit_state.blocked_until is not None:
@@ -704,6 +782,10 @@ async def _run_scheduler(app: FastAPI) -> None:
                     summary["snapshot_count"],
                     summary["fee_rule_count"],
                 )
+                if summary["snapshot_count"] > 0:
+                    refreshed = await refresh_default_analytics_cache(session, settings)
+                    await session.commit()
+                    logger.info("analytics cache refreshed scopes=%s", refreshed)
             except Exception:
                 await session.rollback()
                 logger.exception("scheduler tick failed")

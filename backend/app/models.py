@@ -95,6 +95,36 @@ class ParkingSnapshot(Base):
     parking_lot: Mapped[ParkingLot] = relationship(back_populates="snapshots")
 
 
+class AnalyticsCache(Base):
+    __tablename__ = "analytics_caches"
+    __table_args__ = (
+        UniqueConstraint(
+            "metric",
+            "scope_key",
+            "days",
+            "interval_minutes",
+            "limit",
+            "future_hours",
+            name="uq_analytics_cache_scope",
+        ),
+        Index("ix_analytics_caches_lookup", "metric", "scope_key"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    metric: Mapped[str] = mapped_column(String(60))
+    scope_key: Mapped[str] = mapped_column(String(80))
+    airport_code: Mapped[str | None] = mapped_column(String(10), nullable=True)
+    parking_lot_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    days: Mapped[int] = mapped_column(Integer, default=0)
+    interval_minutes: Mapped[int] = mapped_column(Integer, default=0)
+    limit: Mapped[int] = mapped_column(Integer, default=0)
+    future_hours: Mapped[int] = mapped_column(Integer, default=0)
+    generated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    source_observed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    payload_json: Mapped[Any] = mapped_column(JSON)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+
+
 class ParkingFeeRule(Base):
     __tablename__ = "parking_fee_rules"
     __table_args__ = (

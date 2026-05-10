@@ -7,11 +7,12 @@ from unittest.mock import AsyncMock, patch
 from zoneinfo import ZoneInfo
 
 from fastapi.testclient import TestClient
+from sqlalchemy import select
 
 from app.core.config import Settings
 from app.core.time_utils import now_utc
 from app.main import create_app
-from app.models import CollectionRun
+from app.models import AnalyticsCache, CollectionRun
 
 
 def assert_is_utc_iso(value: str | None) -> None:
@@ -59,6 +60,31 @@ async def insert_collection_run(
                 error_message=error_message,
             )
         )
+        await session.commit()
+
+
+async def replace_default_timeseries_cache(client: TestClient) -> None:
+    session_factory = client.app.state.session_factory
+    async with session_factory() as session:
+        cached = await session.scalar(
+            select(AnalyticsCache).where(
+                AnalyticsCache.metric == "timeseries",
+                AnalyticsCache.scope_key == "GMP:*",
+                AnalyticsCache.days == 7,
+                AnalyticsCache.interval_minutes == 30,
+                AnalyticsCache.future_hours == 0,
+            )
+        )
+        assert cached is not None
+        cached.payload_json = {
+            "generated_at": "2030-01-01T00:00:00+00:00",
+            "airport_code": "GMP",
+            "parking_lot_id": None,
+            "days": 7,
+            "interval_minutes": 30,
+            "future_hours": 0,
+            "items": [],
+        }
         await session.commit()
 
 
@@ -183,6 +209,20 @@ def test_current_and_analytics(client) -> None:
     assert threshold_insights_payload["interval_minutes"] == 10
     assert len(threshold_insights_payload["weekday_items"]) == 14
     assert "sample_count" in threshold_insights_payload["weekday_items"][0]
+
+
+def test_default_time_series_uses_precomputed_cache(client) -> None:
+    asyncio.run(replace_default_timeseries_cache(client))
+
+    response = client.get(
+        "/parking/analytics/timeseries",
+        params={"airport_code": "GMP", "days": 7, "interval_minutes": 30},
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["generated_at"].startswith("2030-01-01T00:00:00")
+    assert payload["items"] == []
 
 
 def test_flight_status_returns_sample_markers(client) -> None:

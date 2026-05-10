@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 import { DashboardApp } from "@/components/dashboard-app";
@@ -189,6 +189,7 @@ describe("DashboardApp", () => {
     Object.defineProperty(window, "innerWidth", { configurable: true, value: 1024 });
     localStorage.clear();
     vi.clearAllMocks();
+    vi.unstubAllGlobals();
     apiClient.getCollectorStatus.mockResolvedValue(buildCollectorStatus());
   });
 
@@ -283,6 +284,43 @@ describe("DashboardApp", () => {
     await screen.findByText("100/200대");
     expect(screen.queryByText("데이터를 불러오는 중입니다.")).not.toBeInTheDocument();
     expect(apiClient.getTimeSeries).toHaveBeenCalled();
+  });
+
+  test("defers analytics requests until the analytics section is near the viewport", async () => {
+    let intersectionCallback: IntersectionObserverCallback | null = null;
+    vi.stubGlobal(
+      "IntersectionObserver",
+      class MockIntersectionObserver implements IntersectionObserver {
+        readonly root = null;
+        readonly rootMargin = "600px 0px";
+        readonly thresholds = [0];
+
+        constructor(callback: IntersectionObserverCallback) {
+          intersectionCallback = callback;
+        }
+
+        disconnect = vi.fn();
+        observe = vi.fn();
+        takeRecords = vi.fn(() => []);
+        unobserve = vi.fn();
+      }
+    );
+
+    render(<DashboardApp apiBaseUrl="http://localhost:8000" />);
+
+    await screen.findByText((_, element) => element?.textContent === "100/200대");
+    expect(apiClient.getHolidaySummary).toHaveBeenCalled();
+    expect(apiClient.getTimeSeries).not.toHaveBeenCalled();
+    expect(apiClient.getFlightStatus).not.toHaveBeenCalled();
+
+    act(() => {
+      intersectionCallback?.([{ isIntersecting: true } as IntersectionObserverEntry], {} as IntersectionObserver);
+    });
+
+    await waitFor(() => {
+      expect(apiClient.getTimeSeries).toHaveBeenCalled();
+    });
+    expect(apiClient.getFlightStatus).toHaveBeenCalled();
   });
 
   test("refreshes dashboard data automatically without a page reload", async () => {

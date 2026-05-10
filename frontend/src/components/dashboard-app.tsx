@@ -31,6 +31,10 @@ type DashboardAppProps = {
 
 const DASHBOARD_AUTO_REFRESH_INTERVAL_MS = 60_000;
 
+function buildSelectionKey(airportCode: string, parkingLotId: number | null): string {
+  return `${airportCode}:${parkingLotId ?? "all"}`;
+}
+
 function buildFlightStatusError(airportCode: string, caughtError: unknown): FlightStatusResponse {
   return {
     generated_at: new Date().toISOString(),
@@ -116,6 +120,10 @@ export function DashboardApp({
   const api = useMemo(() => buildApiClient(apiBaseUrl), [apiBaseUrl]);
   const mountedRef = useRef(false);
   const loadRequestIdRef = useRef(0);
+  const analyticsRequestIdRef = useRef(0);
+  const analyticsVisibleRef = useRef(false);
+  const analyticsLoadedScopeRef = useRef<string | null>(null);
+  const analyticsInFlightScopeRef = useRef<string | null>(null);
   const isMobile = useViewportMode();
   const [airports, setAirports] = useState<Airport[]>([]);
   const [selectedAirportCode, setSelectedAirportCode] = useState("");
@@ -142,6 +150,64 @@ export function DashboardApp({
     };
   }, []);
 
+  const loadAnalyticsData = useCallback(
+    async (
+      airportCode: string,
+      parkingLotId: number | null = null,
+      options: { force?: boolean } = {}
+    ) => {
+      const scopeKey = buildSelectionKey(airportCode, parkingLotId);
+      if (!options.force && (analyticsLoadedScopeRef.current === scopeKey || analyticsInFlightScopeRef.current === scopeKey)) {
+        return;
+      }
+
+      const requestId = analyticsRequestIdRef.current + 1;
+      analyticsRequestIdRef.current = requestId;
+      analyticsInFlightScopeRef.current = scopeKey;
+
+      try {
+        const flightStatusRequest = withTimeout(
+          api.getFlightStatus(airportCode).catch((caughtError) => buildFlightStatusError(airportCode, caughtError)),
+          flightStatusTimeoutMs,
+          () => buildFlightStatusError(airportCode, new Error("비행편 정보 응답이 지연되어 주차 현황을 먼저 표시합니다."))
+        );
+        const holidayPatternsRequest = api
+          .getHolidayPatterns(airportCode, { parkingLotId })
+          .catch((caughtError) => buildHolidayPatternError(airportCode, parkingLotId, caughtError));
+
+        const [thresholds, thresholdDetail, weekdayHourly, holidayPatternDetail, timeseries, flights] = await Promise.all([
+          api.getThresholdEvents(airportCode, parkingLotId),
+          api.getThresholdInsights(airportCode, { parkingLotId }),
+          api.getByWeekdayHour(airportCode, parkingLotId),
+          holidayPatternsRequest,
+          api.getTimeSeries(airportCode, { parkingLotId }),
+          flightStatusRequest,
+        ]);
+
+        if (!mountedRef.current || analyticsRequestIdRef.current !== requestId) {
+          return;
+        }
+        setThresholdEvents(thresholds);
+        setThresholdInsights(thresholdDetail);
+        setWeekdayHourlyPatterns(weekdayHourly);
+        setHolidayPatterns(holidayPatternDetail);
+        setTimeSeries(timeseries);
+        setFlightStatus(flights);
+        analyticsLoadedScopeRef.current = scopeKey;
+      } catch (caughtError) {
+        if (!mountedRef.current || analyticsRequestIdRef.current !== requestId) {
+          return;
+        }
+        setError(caughtError instanceof Error ? caughtError.message : "분석 데이터를 불러오지 못했습니다.");
+      } finally {
+        if (analyticsInFlightScopeRef.current === scopeKey) {
+          analyticsInFlightScopeRef.current = null;
+        }
+      }
+    },
+    [api, flightStatusTimeoutMs]
+  );
+
   const loadAirportData = useCallback(
     async (
       airportCode: string,
@@ -161,63 +227,31 @@ export function DashboardApp({
         setHolidaySummary(null);
         setHolidayPatterns(null);
         setTimeSeries(null);
+        analyticsLoadedScopeRef.current = null;
+        analyticsInFlightScopeRef.current = null;
       }
       setError(null);
 
       try {
-        const flightStatusRequest = withTimeout(
-          api.getFlightStatus(airportCode).catch((caughtError) => buildFlightStatusError(airportCode, caughtError)),
-          flightStatusTimeoutMs,
-          () => buildFlightStatusError(airportCode, new Error("비행편 정보 응답이 지연되어 주차 현황을 먼저 표시합니다."))
-        );
-        const [current, status] = await Promise.all([
+        const coreHolidaySummaryRequest = api.getHolidaySummary().catch(buildHolidaySummaryError);
+        const [coreCurrent, coreStatus, coreHolidays] = await Promise.all([
           api.getCurrent(airportCode),
           api.getCollectorStatus(),
+          coreHolidaySummaryRequest,
         ]);
         if (!mountedRef.current || loadRequestIdRef.current !== requestId) {
           return;
         }
-        setCurrentItems(current.items);
-        setCollectorStatus(status);
+        setCurrentItems(coreCurrent.items);
+        setCollectorStatus(coreStatus);
+        setHolidaySummary(coreHolidays);
         if (showLoading) {
           setLoading(false);
         }
-
-        void flightStatusRequest.then((flights) => {
-          if (mountedRef.current && loadRequestIdRef.current === requestId) {
-            setFlightStatus(flights);
-          }
-        });
-
-        const holidaySummaryRequest = api.getHolidaySummary().catch(buildHolidaySummaryError);
-        const holidayPatternsRequest = api
-          .getHolidayPatterns(airportCode, { parkingLotId })
-          .catch((caughtError) => buildHolidayPatternError(airportCode, parkingLotId, caughtError));
-        void Promise.all([
-          api.getThresholdEvents(airportCode, parkingLotId),
-          api.getThresholdInsights(airportCode, { parkingLotId }),
-          api.getByWeekdayHour(airportCode, parkingLotId),
-          holidaySummaryRequest,
-          holidayPatternsRequest,
-          api.getTimeSeries(airportCode, { parkingLotId }),
-        ])
-          .then(([thresholds, thresholdDetail, weekdayHourly, holidays, holidayPatternDetail, timeseries]) => {
-            if (!mountedRef.current || loadRequestIdRef.current !== requestId) {
-              return;
-            }
-            setThresholdEvents(thresholds);
-            setThresholdInsights(thresholdDetail);
-            setWeekdayHourlyPatterns(weekdayHourly);
-            setHolidaySummary(holidays);
-            setHolidayPatterns(holidayPatternDetail);
-            setTimeSeries(timeseries);
-          })
-          .catch((caughtError) => {
-            if (!mountedRef.current || loadRequestIdRef.current !== requestId) {
-              return;
-            }
-            setError(caughtError instanceof Error ? caughtError.message : "분석 데이터를 불러오지 못했습니다.");
-          });
+        if (analyticsVisibleRef.current) {
+          void loadAnalyticsData(airportCode, parkingLotId, { force: !showLoading });
+        }
+        return;
       } catch (caughtError) {
         if (!mountedRef.current || loadRequestIdRef.current !== requestId) {
           return;
@@ -229,7 +263,7 @@ export function DashboardApp({
         }
       }
     },
-    [api, flightStatusTimeoutMs]
+    [api, loadAnalyticsData]
   );
 
   useEffect(() => {
@@ -350,6 +384,13 @@ export function DashboardApp({
     }
   }
 
+  const handleAnalyticsVisible = useCallback(() => {
+    analyticsVisibleRef.current = true;
+    if (selectedAirportCode) {
+      void loadAnalyticsData(selectedAirportCode, selectedParkingLotId);
+    }
+  }, [loadAnalyticsData, selectedAirportCode, selectedParkingLotId]);
+
   return (
     <>
       <DashboardScreen
@@ -383,6 +424,7 @@ export function DashboardApp({
           });
           void loadAirportData(airportCode, null);
         }}
+        onAnalyticsVisible={handleAnalyticsVisible}
         onParkingLotChange={(parkingLotId) => {
           startTransition(() => {
             setSelectedParkingLotId(parkingLotId);

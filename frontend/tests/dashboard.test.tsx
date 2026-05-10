@@ -264,6 +264,7 @@ describe("DashboardScreen", () => {
         actionMessage={null}
         actionMessageIsError={false}
         onAirportChange={() => undefined}
+        onAnalyticsVisible={() => undefined}
         onParkingLotChange={() => undefined}
         onRefresh={() => undefined}
         onManualCollect={() => undefined}
@@ -319,6 +320,7 @@ describe("DashboardScreen", () => {
         actionMessage={null}
         actionMessageIsError={false}
         onAirportChange={() => undefined}
+        onAnalyticsVisible={() => undefined}
         onParkingLotChange={() => undefined}
         onRefresh={() => undefined}
         onManualCollect={() => undefined}
@@ -363,6 +365,7 @@ describe("DashboardScreen", () => {
         actionMessage={null}
         actionMessageIsError={false}
         onAirportChange={() => undefined}
+        onAnalyticsVisible={() => undefined}
         onParkingLotChange={onParkingLotChange}
         onRefresh={() => undefined}
         onManualCollect={() => undefined}
@@ -398,6 +401,7 @@ describe("DashboardScreen", () => {
         actionMessage="마지막 업데이트 후 5분이 지나지 않았습니다."
         actionMessageIsError
         onAirportChange={() => undefined}
+        onAnalyticsVisible={() => undefined}
         onParkingLotChange={() => undefined}
         onRefresh={() => undefined}
         onManualCollect={() => undefined}

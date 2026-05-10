@@ -1,6 +1,6 @@
 "use client";
 
-import type { CSSProperties, ReactNode } from "react";
+import { useEffect, useRef, type CSSProperties, type ReactNode } from "react";
 
 import { DailyFlightOverlayChart } from "@/components/daily-flight-overlay-chart";
 import { HistoryChart } from "@/components/history-chart";
@@ -46,6 +46,7 @@ type DashboardScreenProps = {
   actionMessage: string | null;
   actionMessageIsError: boolean;
   onAirportChange: (airportCode: string) => void;
+  onAnalyticsVisible: () => void;
   onParkingLotChange: (parkingLotId: number | null) => void;
   onRefresh: () => void;
   onManualCollect: () => void;
@@ -284,10 +285,12 @@ export function DashboardScreen({
   actionMessage,
   actionMessageIsError,
   onAirportChange,
+  onAnalyticsVisible,
   onParkingLotChange,
   onRefresh,
   onManualCollect,
 }: DashboardScreenProps) {
+  const analyticsRef = useRef<HTMLElement | null>(null);
   const selectedAirport = airports.find((airport) => airport.code === selectedAirportCode);
   const visibleItems = currentItems;
   const latestObservedAt = findLatestValue(scopeItems, "observed_at");
@@ -317,6 +320,30 @@ export function DashboardScreen({
     ),
     1
   );
+
+  useEffect(() => {
+    const analyticsElement = analyticsRef.current;
+    if (!analyticsElement) {
+      return;
+    }
+
+    if (typeof IntersectionObserver === "undefined") {
+      onAnalyticsVisible();
+      return;
+    }
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((entry) => entry.isIntersecting)) {
+          onAnalyticsVisible();
+          observer.disconnect();
+        }
+      },
+      { rootMargin: "600px 0px" }
+    );
+    observer.observe(analyticsElement);
+    return () => observer.disconnect();
+  }, [onAnalyticsVisible]);
 
   return (
     <main className="page-shell">
@@ -484,7 +511,7 @@ export function DashboardScreen({
         </section>
       )}
 
-      <section className="analytics-grid">
+      <section className="analytics-grid" data-testid="analytics-grid" ref={analyticsRef}>
         <HistoryChart
           holidays={holidaySummary?.items ?? []}
           series={timeSeries}
