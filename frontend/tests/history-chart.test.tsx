@@ -92,6 +92,41 @@ describe("HistoryChart", () => {
     expect(within(tooltip).getByText(formatDateTime(series.items[12].bucket_at))).toBeInTheDocument();
   });
 
+  test("does not move the touch cursor while horizontally dragging", () => {
+    render(
+      <HistoryChart
+        holidays={buildHolidays()}
+        series={buildSeries()}
+        scopeLabel={"P1 \uC8FC\uCC28\uC7A5"}
+      />
+    );
+
+    const interactionSurface = screen.getByTestId("history-chart-surface");
+    Object.defineProperty(interactionSurface, "getBoundingClientRect", {
+      configurable: true,
+      value: () => ({
+        x: 0,
+        y: 0,
+        top: 0,
+        left: 0,
+        right: 1080,
+        bottom: 280,
+        width: 1080,
+        height: 280,
+        toJSON: () => ({}),
+      }),
+    });
+
+    fireEvent.touchStart(interactionSurface, { touches: [{ clientX: 100 }] });
+    expect(within(screen.getByTestId("history-tooltip")).getByText("102\uB300")).toBeInTheDocument();
+
+    fireEvent.touchMove(interactionSurface, { touches: [{ clientX: 640 }] });
+
+    const tooltip = screen.getByTestId("history-tooltip");
+    expect(within(tooltip).getByText("102\uB300")).toBeInTheDocument();
+    expect(within(tooltip).queryByText("114\uB300")).not.toBeInTheDocument();
+  });
+
   test("keeps flight markers out of the recent parking chart", () => {
     render(
       <HistoryChart

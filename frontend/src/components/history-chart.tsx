@@ -18,6 +18,7 @@ const CHART_PADDING_X = 18;
 const CHART_PADDING_Y = 20;
 const GRID_LINES = 4;
 const TOOLTIP_EDGE_PADDING = 88;
+const TOUCH_DRAG_THRESHOLD_PX = 12;
 
 type HistoryChartProps = {
   holidays: HolidayItemSummary[];
@@ -166,6 +167,7 @@ function buildHolidayBands(holidays: HolidayItemSummary[], points: ChartPoint[],
 export function HistoryChart({ holidays, series, scopeLabel }: HistoryChartProps) {
   const [activePointIndex, setActivePointIndex] = useState<number | null>(null);
   const scrollRef = useRef<HTMLDivElement | null>(null);
+  const touchGestureRef = useRef<{ startX: number; isHorizontalDrag: boolean } | null>(null);
 
   useEffect(() => {
     setActivePointIndex(null);
@@ -244,6 +246,11 @@ export function HistoryChart({ holidays, series, scopeLabel }: HistoryChartProps
       return null;
     }
     return touches[0].clientX;
+  }
+
+  function updateActivePointFromTouch(target: HTMLDivElement, clientX: number) {
+    const bounds = target.getBoundingClientRect();
+    updateActivePoint(clientX - bounds.left, bounds.width);
   }
 
   return (
@@ -371,16 +378,31 @@ export function HistoryChart({ holidays, series, scopeLabel }: HistoryChartProps
                 if (clientX === null) {
                   return;
                 }
-                const bounds = event.currentTarget.getBoundingClientRect();
-                updateActivePoint(clientX - bounds.left, bounds.width);
+                const gesture = touchGestureRef.current;
+                if (!gesture) {
+                  return;
+                }
+                if (Math.abs(clientX - gesture.startX) > TOUCH_DRAG_THRESHOLD_PX) {
+                  touchGestureRef.current = { ...gesture, isHorizontalDrag: true };
+                  return;
+                }
+                if (!gesture.isHorizontalDrag) {
+                  updateActivePointFromTouch(event.currentTarget, clientX);
+                }
               }}
               onTouchStart={(event) => {
                 const clientX = getTouchClientX(event.touches);
                 if (clientX === null) {
                   return;
                 }
-                const bounds = event.currentTarget.getBoundingClientRect();
-                updateActivePoint(clientX - bounds.left, bounds.width);
+                touchGestureRef.current = { startX: clientX, isHorizontalDrag: false };
+                updateActivePointFromTouch(event.currentTarget, clientX);
+              }}
+              onTouchEnd={() => {
+                touchGestureRef.current = null;
+              }}
+              onTouchCancel={() => {
+                touchGestureRef.current = null;
               }}
             />
 
