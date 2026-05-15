@@ -59,7 +59,10 @@ class RawApiResponse(Base):
     __tablename__ = "raw_api_responses"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    collection_run_id: Mapped[int | None] = mapped_column(ForeignKey("collection_runs.id", ondelete="SET NULL"))
+    collection_run_id: Mapped[int | None] = mapped_column(
+        ForeignKey("collection_runs.id", ondelete="SET NULL"),
+        index=True,
+    )
     source: Mapped[str] = mapped_column(String(40), index=True)
     endpoint: Mapped[str] = mapped_column(String(255))
     request_params_json: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
@@ -76,6 +79,9 @@ class ParkingSnapshot(Base):
         UniqueConstraint("parking_lot_id", "observed_at", "source", name="uq_parking_snapshot"),
         Index("ix_parking_snapshots_airport_observed", "airport_id", "observed_at"),
         Index("ix_parking_snapshots_lot_observed", "parking_lot_id", "observed_at"),
+        Index("ix_parking_snapshots_airport_lot_observed", "airport_id", "parking_lot_id", "observed_at"),
+        Index("ix_parking_snapshots_collection_run_id", "collection_run_id"),
+        Index("ix_parking_snapshots_collected_at", "collected_at"),
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)

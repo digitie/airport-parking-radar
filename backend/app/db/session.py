@@ -48,6 +48,37 @@ async def init_database(engine: AsyncEngine) -> None:
                 "ON parking_snapshots (parking_lot_id, observed_at)"
             )
         )
+        await connection.execute(
+            text(
+                "CREATE INDEX IF NOT EXISTS ix_parking_snapshots_airport_lot_observed "
+                "ON parking_snapshots (airport_id, parking_lot_id, observed_at)"
+            )
+        )
+        await connection.execute(
+            text(
+                "CREATE INDEX IF NOT EXISTS ix_parking_snapshots_airport_lot_observed_desc "
+                "ON parking_snapshots (airport_id, parking_lot_id, observed_at DESC, id DESC)"
+            )
+        )
+        await connection.execute(
+            text(
+                "CREATE INDEX IF NOT EXISTS ix_parking_snapshots_collected_at "
+                "ON parking_snapshots (collected_at)"
+            )
+        )
+        await connection.execute(
+            text(
+                "CREATE INDEX IF NOT EXISTS ix_parking_snapshots_collection_run_id "
+                "ON parking_snapshots (collection_run_id)"
+            )
+        )
+        await connection.execute(
+            text(
+                "CREATE INDEX IF NOT EXISTS ix_raw_api_responses_collection_run_id "
+                "ON raw_api_responses (collection_run_id)"
+            )
+        )
+        await connection.execute(text("PRAGMA optimize"))
 
 
 async def session_scope(

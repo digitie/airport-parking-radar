@@ -323,8 +323,22 @@ describe("DashboardApp", () => {
     expect(apiClient.getFlightStatus).toHaveBeenCalled();
   });
 
-  test("refreshes dashboard data automatically without a page reload", async () => {
+  test("refreshes dashboard data automatically when backend snapshots change", async () => {
     apiClient.getCurrent.mockResolvedValueOnce(currentPayload).mockResolvedValue(refreshedCurrentPayload);
+    apiClient.getCollectorStatus
+      .mockResolvedValueOnce(buildCollectorStatus())
+      .mockResolvedValueOnce(
+        buildCollectorStatus({
+          latest_snapshot_observed_at: "2026-04-26T00:01:00.000Z",
+          latest_snapshot_collected_at: "2026-04-26T00:11:00.000Z",
+        })
+      )
+      .mockResolvedValue(
+        buildCollectorStatus({
+          latest_snapshot_observed_at: "2026-04-26T00:01:00.000Z",
+          latest_snapshot_collected_at: "2026-04-26T00:11:00.000Z",
+        })
+      );
 
     render(<DashboardApp apiBaseUrl="http://localhost:8000" autoRefreshIntervalMs={20} />);
 
@@ -338,5 +352,15 @@ describe("DashboardApp", () => {
       expect(screen.getAllByText((_, element) => element?.textContent === "64/200대").length).toBeGreaterThan(0);
     });
     expect(screen.queryByText("데이터를 불러오는 중입니다.")).not.toBeInTheDocument();
+  });
+
+  test("skips full dashboard reloads while backend snapshots are unchanged", async () => {
+    render(<DashboardApp apiBaseUrl="http://localhost:8000" autoRefreshIntervalMs={20} />);
+
+    await screen.findByTestId("history-chart");
+    await new Promise((resolve) => setTimeout(resolve, 60));
+
+    expect(apiClient.getCollectorStatus.mock.calls.length).toBeGreaterThanOrEqual(2);
+    expect(apiClient.getCurrent).toHaveBeenCalledTimes(1);
   });
 });

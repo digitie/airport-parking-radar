@@ -49,3 +49,12 @@
 - 시계열 차트용 집계 결과는 현재 별도 테이블에 저장하지 않는다.
 - 최근 7일 30분 시계열은 `parking_snapshots`에서 조회 시점에 계산한다.
 - 같은 30분 구간 안에서 주차장별 최신 상태를 사용해 공항 합산 값을 만든다.
+
+## Query indexes
+
+Startup creates missing SQLite indexes with `CREATE INDEX IF NOT EXISTS` so existing ODROID databases are tuned without a manual migration.
+
+- `parking_snapshots (airport_id, parking_lot_id, observed_at)` supports airport-scoped history and analytics scans.
+- `parking_snapshots (airport_id, parking_lot_id, observed_at DESC, id DESC)` supports latest snapshot ranking for `/parking/current`.
+- `parking_snapshots (collected_at)` supports collector status metadata.
+- `parking_snapshots (collection_run_id)` and `raw_api_responses (collection_run_id)` support recent collector run summaries.

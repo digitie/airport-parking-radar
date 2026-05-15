@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import sqlite3
 from pathlib import Path
 from unittest.mock import AsyncMock, patch
 
@@ -48,3 +49,27 @@ def test_sample_seed_is_skipped_in_live_mode(tmp_path: Path) -> None:
             pass
 
     seed_mock.assert_not_awaited()
+
+
+def test_database_startup_creates_query_indexes(tmp_path: Path) -> None:
+    database_path = tmp_path / "test.sqlite3"
+    settings = build_settings(tmp_path, database_url=f"sqlite+aiosqlite:///{database_path}")
+
+    with TestClient(create_app(settings)):
+        pass
+
+    with sqlite3.connect(database_path) as connection:
+        index_names = {
+            row[0]
+            for row in connection.execute(
+                "SELECT name FROM sqlite_master WHERE type = 'index'"
+            )
+        }
+
+    assert {
+        "ix_parking_snapshots_airport_lot_observed",
+        "ix_parking_snapshots_airport_lot_observed_desc",
+        "ix_parking_snapshots_collected_at",
+        "ix_parking_snapshots_collection_run_id",
+        "ix_raw_api_responses_collection_run_id",
+    } <= index_names

@@ -29,10 +29,14 @@ type DashboardAppProps = {
   flightStatusTimeoutMs?: number;
 };
 
-const DASHBOARD_AUTO_REFRESH_INTERVAL_MS = 60_000;
+const DASHBOARD_AUTO_REFRESH_INTERVAL_MS = 15_000;
 
 function buildSelectionKey(airportCode: string, parkingLotId: number | null): string {
   return `${airportCode}:${parkingLotId ?? "all"}`;
+}
+
+function buildBackendUpdateMarker(status: CollectorStatusResponse): string {
+  return `${status.latest_snapshot_observed_at ?? ""}|${status.latest_snapshot_collected_at ?? ""}`;
 }
 
 function buildFlightStatusError(airportCode: string, caughtError: unknown): FlightStatusResponse {
@@ -124,6 +128,8 @@ export function DashboardApp({
   const analyticsVisibleRef = useRef(false);
   const analyticsLoadedScopeRef = useRef<string | null>(null);
   const analyticsInFlightScopeRef = useRef<string | null>(null);
+  const latestBackendUpdateMarkerRef = useRef<string | null>(null);
+  const backendRefreshInFlightRef = useRef(false);
   const isMobile = useViewportMode();
   const [airports, setAirports] = useState<Airport[]>([]);
   const [selectedAirportCode, setSelectedAirportCode] = useState("");
@@ -244,6 +250,7 @@ export function DashboardApp({
         }
         setCurrentItems(coreCurrent.items);
         setCollectorStatus(coreStatus);
+        latestBackendUpdateMarkerRef.current = buildBackendUpdateMarker(coreStatus);
         setHolidaySummary(coreHolidays);
         if (showLoading) {
           setLoading(false);
@@ -318,11 +325,39 @@ export function DashboardApp({
       return;
     }
 
-    function refreshVisibleDashboard() {
+    let active = true;
+
+    async function refreshVisibleDashboard() {
       if (document.visibilityState === "hidden") {
         return;
       }
-      void loadAirportData(selectedAirportCode, selectedParkingLotId, { showLoading: false });
+
+      try {
+        const status = await api.getCollectorStatus();
+        if (!active || !mountedRef.current) {
+          return;
+        }
+
+        const nextMarker = buildBackendUpdateMarker(status);
+        const previousMarker = latestBackendUpdateMarkerRef.current;
+        setCollectorStatus(status);
+
+        if (previousMarker === null) {
+          latestBackendUpdateMarkerRef.current = nextMarker;
+          return;
+        }
+
+        if (nextMarker === previousMarker || backendRefreshInFlightRef.current) {
+          return;
+        }
+
+        backendRefreshInFlightRef.current = true;
+        await loadAirportData(selectedAirportCode, selectedParkingLotId, { showLoading: false });
+      } catch {
+        // Keep the last known dashboard visible; the next poll or focus event will retry.
+      } finally {
+        backendRefreshInFlightRef.current = false;
+      }
     }
 
     const refreshTimer = window.setInterval(refreshVisibleDashboard, autoRefreshIntervalMs);
@@ -330,11 +365,12 @@ export function DashboardApp({
     document.addEventListener("visibilitychange", refreshVisibleDashboard);
 
     return () => {
+      active = false;
       window.clearInterval(refreshTimer);
       window.removeEventListener("focus", refreshVisibleDashboard);
       document.removeEventListener("visibilitychange", refreshVisibleDashboard);
     };
-  }, [autoRefreshIntervalMs, loadAirportData, selectedAirportCode, selectedParkingLotId]);
+  }, [api, autoRefreshIntervalMs, loadAirportData, selectedAirportCode, selectedParkingLotId]);
 
   useEffect(() => {
     if (!selectedAirportCode) {
