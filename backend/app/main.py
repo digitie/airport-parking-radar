@@ -342,7 +342,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         airport_code: str | None = Query(default=None),
         parking_lot_id: int | None = Query(default=None),
         days: int = Query(default=7, ge=1, le=30),
-        interval_minutes: int = Query(default=30, ge=10, le=60),
+        interval_minutes: int = Query(default=DEFAULT_TIMESERIES_INTERVAL_MINUTES, ge=10, le=60),
         future_hours: int = Query(default=0, ge=0, le=12),
         session: AsyncSession = Depends(get_db),
     ) -> ParkingTimeSeriesResponse:

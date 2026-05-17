@@ -127,7 +127,7 @@ def build_time_series(
     *,
     now: datetime | None = None,
     days: int = 7,
-    interval_minutes: int = 30,
+    interval_minutes: int = 10,
     future_hours: int = 0,
     tz_name: str = "Asia/Seoul",
 ) -> list[dict[str, int | datetime]]:

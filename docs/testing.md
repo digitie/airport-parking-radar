@@ -49,7 +49,7 @@ npm run build
 
 주요 확인 항목:
 
-- `timeseries` 7일 x 30분 버킷 계산
+- `timeseries` 7일 x 10분 버킷 계산
 - `timeseries` 기본 미래 축 없음
 - `timeseries` 명시적 `future_hours` 요청 시 미래 구간 `lot_observations=0` 처리
 - `threshold-events` 임계치 진입 / 회복 계산

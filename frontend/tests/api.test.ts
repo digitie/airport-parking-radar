@@ -47,7 +47,7 @@ describe("api client", () => {
     await client.getByWeekdayHour("GMP", 12);
     await client.getThresholdEvents("GMP", 12);
     await client.getThresholdInsights("GMP", { parkingLotId: 12, days: 21, intervalMinutes: 10 });
-    await client.getTimeSeries("GMP", { parkingLotId: 12, days: 7, intervalMinutes: 30 });
+    await client.getTimeSeries("GMP", { parkingLotId: 12, days: 7 });
     await client.getHolidayPatterns("GMP", { parkingLotId: 12, limit: 8 });
 
     expect(fetchMock).toHaveBeenNthCalledWith(
@@ -77,7 +77,7 @@ describe("api client", () => {
     );
     expect(fetchMock).toHaveBeenNthCalledWith(
       6,
-      "http://localhost:8000/parking/analytics/timeseries?airport_code=GMP&parking_lot_id=12&days=7&interval_minutes=30&future_hours=0",
+      "http://localhost:8000/parking/analytics/timeseries?airport_code=GMP&parking_lot_id=12&days=7&interval_minutes=10&future_hours=0",
       expect.objectContaining({ cache: "no-store" })
     );
     expect(fetchMock).toHaveBeenNthCalledWith(

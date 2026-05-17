@@ -71,7 +71,7 @@ async def replace_default_timeseries_cache(client: TestClient) -> None:
                 AnalyticsCache.metric == "timeseries",
                 AnalyticsCache.scope_key == "GMP:*",
                 AnalyticsCache.days == 7,
-                AnalyticsCache.interval_minutes == 30,
+                AnalyticsCache.interval_minutes == 10,
                 AnalyticsCache.future_hours == 0,
             )
         )
@@ -81,7 +81,7 @@ async def replace_default_timeseries_cache(client: TestClient) -> None:
             "airport_code": "GMP",
             "parking_lot_id": None,
             "days": 7,
-            "interval_minutes": 30,
+            "interval_minutes": 10,
             "future_hours": 0,
             "items": [],
         }
@@ -146,7 +146,7 @@ def test_current_and_analytics(client) -> None:
     weekday_hour = client.get("/parking/analytics/by-weekday-hour", params={"airport_code": "GMP"})
     timeseries = client.get(
         "/parking/analytics/timeseries",
-        params={"airport_code": "GMP", "days": 7, "interval_minutes": 30},
+        params={"airport_code": "GMP", "days": 7},
     )
     holiday_summary = client.get(
         "/holidays/summary",
@@ -176,9 +176,9 @@ def test_current_and_analytics(client) -> None:
     timeseries_payload = timeseries.json()
     assert_is_utc_iso(timeseries_payload["generated_at"])
     assert timeseries_payload["days"] == 7
-    assert timeseries_payload["interval_minutes"] == 30
+    assert timeseries_payload["interval_minutes"] == 10
     assert timeseries_payload["future_hours"] == 0
-    assert len(timeseries_payload["items"]) == 336
+    assert len(timeseries_payload["items"]) == 1008
     assert max(point["lot_observations"] for point in timeseries_payload["items"]) >= 1
     assert_is_utc_iso(timeseries_payload["items"][0]["bucket_at"])
     latest_observed_point = next(
@@ -217,7 +217,7 @@ def test_default_time_series_uses_precomputed_cache(client) -> None:
 
     response = client.get(
         "/parking/analytics/timeseries",
-        params={"airport_code": "GMP", "days": 7, "interval_minutes": 30},
+        params={"airport_code": "GMP", "days": 7},
     )
 
     assert response.status_code == 200
