@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta
 from typing import Any
@@ -17,6 +18,8 @@ KAC_FLIGHT_DETAIL_STATUS_ENDPOINT = "https://api.odcloud.kr/api/FlightStatusList
 INCHEON_FLIGHT_ARRIVALS_ENDPOINT = "http://apis.data.go.kr/B551177/StatusOfPassengerFlightsDeOdp/getPassengerArrivalsDeOdp"
 INCHEON_FLIGHT_DEPARTURES_ENDPOINT = "http://apis.data.go.kr/B551177/StatusOfPassengerFlightsDeOdp/getPassengerDeparturesDeOdp"
 SUCCESS_RESULT_CODES = {"00", "0"}
+MAX_UPSTREAM_ERROR_BODY_LENGTH = 300
+SERVICE_KEY_PATTERN = re.compile(r"(serviceKey=)[^&'\"\s]+", re.IGNORECASE)
 
 SAMPLE_FLIGHT_ITEMS: dict[str, list[dict[str, str]]] = {
     "GMP": [
@@ -130,6 +133,10 @@ class FlightStatusClient:
         raise NotImplementedError
 
 
+class FlightStatusUpstreamError(RuntimeError):
+    pass
+
+
 class FixtureFlightStatusClient(FlightStatusClient):
     async def fetch_status(self, airport_code: str, local_date: date) -> FlightSourceResponse:
         if airport_code.upper() == "ICN":
@@ -170,7 +177,11 @@ class LiveFlightStatusClient(FlightStatusClient):
         }
         async with httpx.AsyncClient(timeout=self.settings.api_timeout_seconds) as client:
             response = await client.get(KAC_FLIGHT_DETAIL_STATUS_ENDPOINT, params=params)
-            response.raise_for_status()
+            _raise_for_upstream_status(
+                "kac_flight_detail_status",
+                response,
+                self.settings.data_go_kr_service_key,
+            )
             return FlightSourceResponse(
                 source="kac_flight_detail_status",
                 endpoint=KAC_FLIGHT_DETAIL_STATUS_ENDPOINT,
@@ -190,7 +201,11 @@ class LiveFlightStatusClient(FlightStatusClient):
         }
         async with httpx.AsyncClient(timeout=self.settings.api_timeout_seconds) as client:
             response = await client.get(KAC_FLIGHT_STATUS_ENDPOINT, params=params)
-            response.raise_for_status()
+            _raise_for_upstream_status(
+                "kac_flight_status",
+                response,
+                self.settings.data_go_kr_service_key,
+            )
             return FlightSourceResponse(
                 source="kac_flight_status",
                 endpoint=KAC_FLIGHT_STATUS_ENDPOINT,
@@ -215,8 +230,16 @@ class LiveFlightStatusClient(FlightStatusClient):
         async with httpx.AsyncClient(timeout=self.settings.api_timeout_seconds) as client:
             arrivals_response = await client.get(INCHEON_FLIGHT_ARRIVALS_ENDPOINT, params=base_params)
             departures_response = await client.get(INCHEON_FLIGHT_DEPARTURES_ENDPOINT, params=base_params)
-            arrivals_response.raise_for_status()
-            departures_response.raise_for_status()
+            _raise_for_upstream_status(
+                "incheon_flight_status arrivals",
+                arrivals_response,
+                self.settings.data_go_kr_service_key,
+            )
+            _raise_for_upstream_status(
+                "incheon_flight_status departures",
+                departures_response,
+                self.settings.data_go_kr_service_key,
+            )
             return FlightSourceResponse(
                 source="incheon_flight_status",
                 endpoint=INCHEON_FLIGHT_DEPARTURES_ENDPOINT,
@@ -249,7 +272,8 @@ class FlightStatusService:
 
         payload = await self._fetch_status(airport_code, local_date)
         expires_at = current_time + timedelta(seconds=max(self.settings.flight_status_cache_seconds, 0))
-        self._cache[cache_key] = (expires_at, payload)
+        if payload.get("status") != "upstream_error":
+            self._cache[cache_key] = (expires_at, payload)
         return payload
 
     async def _fetch_status(self, airport_code: str, local_date: date) -> dict[str, Any]:
@@ -291,11 +315,14 @@ class FlightStatusService:
                     local_date,
                     self.settings.app_timezone,
                 )
-        except (httpx.HTTPError, ElementTree.ParseError, ValueError) as exc:
+        except (FlightStatusUpstreamError, httpx.HTTPError, ElementTree.ParseError, ValueError) as exc:
             return {
                 **base_payload,
                 "status": "upstream_error",
-                "error_message": f"비행편 API 응답을 읽지 못했습니다: {exc}",
+                "error_message": _build_flight_api_error_message(
+                    exc,
+                    self.settings.data_go_kr_service_key,
+                ),
             }
 
         status = "sample" if response.source in {"sample_flight_status", "sample_incheon_flight_status"} else "success"
@@ -395,6 +422,38 @@ def _build_client(settings: Settings) -> FlightStatusClient | None:
     if settings.use_sample_client_when_no_key:
         return FixtureFlightStatusClient()
     return None
+
+
+def _raise_for_upstream_status(source: str, response: httpx.Response, service_key: str | None) -> None:
+    if response.status_code < 400:
+        return
+
+    body = _sanitize_upstream_error(response.text, service_key)
+    if len(body) > MAX_UPSTREAM_ERROR_BODY_LENGTH:
+        body = f"{body[:MAX_UPSTREAM_ERROR_BODY_LENGTH].rstrip()}..."
+    detail = f": {body}" if body else ""
+    raise FlightStatusUpstreamError(f"{source} HTTP {response.status_code}{detail}")
+
+
+def _build_flight_api_error_message(exc: Exception, service_key: str | None) -> str:
+    sanitized_error = _sanitize_upstream_error(exc, service_key)
+    return f"비행편 API 응답을 읽지 못했습니다: {sanitized_error}"
+
+
+def _sanitize_upstream_error(error: Exception | str, service_key: str | None) -> str:
+    if isinstance(error, httpx.HTTPStatusError):
+        response = error.response
+        body = _sanitize_upstream_error(response.text, service_key) if response is not None else ""
+        if body:
+            return f"HTTP {response.status_code}: {body}"
+        if response is not None:
+            return f"HTTP {response.status_code}"
+
+    message = str(error).strip() or error.__class__.__name__
+    if service_key:
+        message = message.replace(service_key, "<redacted>")
+    message = SERVICE_KEY_PATTERN.sub(r"\1<redacted>", message)
+    return " ".join(message.split())
 
 
 def _deduplicate_codeshare_flights(items: list[dict[str, Any]]) -> list[dict[str, Any]]:

@@ -1,8 +1,94 @@
 from __future__ import annotations
 
+import asyncio
+import json
 from datetime import date
 
-from app.services.flight_status import parse_flight_status_xml, parse_incheon_flight_status_json, parse_kac_flight_detail_json
+import httpx
+
+from app.core.config import Settings
+from app.services.flight_status import (
+    FlightSourceResponse,
+    FlightStatusService,
+    parse_flight_status_xml,
+    parse_incheon_flight_status_json,
+    parse_kac_flight_detail_json,
+)
+
+
+class _FlakyFlightStatusClient:
+    def __init__(self) -> None:
+        self.calls = 0
+
+    async def fetch_status(self, airport_code: str, local_date: date) -> FlightSourceResponse:
+        self.calls += 1
+        if self.calls == 1:
+            request = httpx.Request(
+                "GET",
+                "https://api.odcloud.kr/api/FlightStatusListDTL/v1/getFlightStatusListDetail?serviceKey=secret-key&page=1",
+            )
+            response = httpx.Response(400, request=request, text='{"message":"bad condition"}')
+            raise httpx.HTTPStatusError(
+                "Client error '400 Bad Request' for url "
+                "'https://api.odcloud.kr/api/FlightStatusListDTL/v1/getFlightStatusListDetail?serviceKey=secret-key&page=1'",
+                request=request,
+                response=response,
+            )
+
+        body = json.dumps(
+            {
+                "data": [
+                    {
+                        "AIRLINE_ENGLISH": "AIR BUSAN",
+                        "AIRPORT": airport_code,
+                        "AIR_FLN": "BX8804",
+                        "ARRIVED_ENG": "GIMPO",
+                        "BOARDING_ENG": "GIMHAE",
+                        "ETD": "0915",
+                        "FLIGHT_DATE": local_date.strftime("%Y%m%d"),
+                        "IO": "O",
+                        "LINE": "DOMESTIC",
+                        "RMK_ENG": "DEPARTED",
+                        "STD": "0910",
+                    }
+                ]
+            }
+        )
+        return FlightSourceResponse(
+            source="kac_flight_detail_status",
+            endpoint="https://api.odcloud.kr/api/FlightStatusListDTL/v1/getFlightStatusListDetail",
+            request_params={"airport_code": airport_code},
+            status_code=200,
+            body_text=body,
+        )
+
+
+def test_flight_status_does_not_cache_or_leak_upstream_http_errors() -> None:
+    service = FlightStatusService(
+        Settings(
+            data_go_kr_service_key=None,
+            use_sample_client_when_no_key=False,
+            flight_status_cache_seconds=300,
+        )
+    )
+    flaky_client = _FlakyFlightStatusClient()
+    service.client = flaky_client
+
+    async def fetch_twice() -> tuple[dict, dict, dict]:
+        first = await service.get_status("PUS", date(2026, 5, 17))
+        second = await service.get_status("PUS", date(2026, 5, 17))
+        third = await service.get_status("PUS", date(2026, 5, 17))
+        return first, second, third
+
+    first_payload, second_payload, third_payload = asyncio.run(fetch_twice())
+
+    assert first_payload["status"] == "upstream_error"
+    assert "secret-key" not in (first_payload["error_message"] or "")
+    assert "serviceKey=" not in (first_payload["error_message"] or "")
+    assert second_payload["status"] == "success"
+    assert len(second_payload["items"]) == 1
+    assert third_payload == second_payload
+    assert flaky_client.calls == 2
 
 
 def test_parse_flight_status_xml_reports_upstream_error() -> None:
