@@ -199,20 +199,33 @@ def build_holiday_patterns(
     holidays: list[tuple[date, str]],
     tz_name: str = "Asia/Seoul",
 ) -> list[dict[str, int | float | str | None | list[dict[str, int | float | None]]]]:
+    return build_special_day_patterns(
+        snapshots,
+        [(local_date, name, "holiday") for local_date, name in holidays],
+        tz_name=tz_name,
+    )
+
+
+def build_special_day_patterns(
+    snapshots: list[ParkingSnapshot],
+    special_days: list[tuple[date, str, str]],
+    tz_name: str = "Asia/Seoul",
+) -> list[dict[str, int | float | str | None | list[dict[str, int | float | None]]]]:
     tz = ZoneInfo(tz_name)
-    holiday_names = {local_date: name for local_date, name in holidays}
+    special_day_names = {local_date: name for local_date, name, _day_type in special_days}
+    special_day_types = {local_date: day_type for local_date, _name, day_type in special_days}
     hourly_totals: dict[date, dict[int, dict[datetime, int]]] = defaultdict(lambda: defaultdict(lambda: defaultdict(int)))
 
     for snapshot in snapshots:
         observed_at_utc = ensure_tz(snapshot.observed_at, "UTC")
         local_observed_at = observed_at_utc.astimezone(tz)
         local_date = local_observed_at.date()
-        if local_date not in holiday_names:
+        if local_date not in special_day_names:
             continue
         hourly_totals[local_date][local_observed_at.hour][observed_at_utc] += snapshot.available_spaces
 
     patterns = []
-    for local_date, name in sorted(holidays, key=lambda item: item[0], reverse=True):
+    for local_date, name, day_type in sorted(special_days, key=lambda item: item[0], reverse=True):
         hourly_buckets = []
         date_values: list[int] = []
 
@@ -233,6 +246,7 @@ def build_holiday_patterns(
             {
                 "local_date": local_date.isoformat(),
                 "name": name,
+                "day_type": special_day_types.get(local_date, day_type),
                 "weekday": local_date.weekday(),
                 "weekday_name": WEEKDAY_LABELS[local_date.weekday()],
                 "average_available_spaces": round(mean(date_values), 2) if date_values else None,

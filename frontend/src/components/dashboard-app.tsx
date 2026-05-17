@@ -71,7 +71,7 @@ function buildHolidayPatternError(airportCode: string, parkingLotId: number | nu
     parking_lot_id: parkingLotId,
     source: "client",
     status: "client_error",
-    error_message: caughtError instanceof Error ? caughtError.message : "공휴일 패턴을 불러오지 못했습니다.",
+    error_message: caughtError instanceof Error ? caughtError.message : "공휴일/토/일요일 패턴을 불러오지 못했습니다.",
     items: [],
   };
 }

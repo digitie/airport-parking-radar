@@ -521,7 +521,7 @@ export function DashboardScreen({
         <ResponsiveSection
           isMobile={isMobile}
           summary={`최근 7일 · ${scopeLabel}`}
-          title="일단위 잔여 주차면 변화"
+          title="일 단위 잔여 주차면 변화"
         >
           <DailyFlightOverlayChart
             flightStatus={flightStatus}
@@ -663,18 +663,18 @@ export function DashboardScreen({
 
         <ResponsiveSection
           isMobile={isMobile}
-          summary="공휴일 날짜별 시간대 경향"
-          title="공휴일 패턴"
+          summary="공휴일/토/일요일 시간대 경향"
+          title="공휴일/토/일요일 패턴"
         >
           <article className="panel-surface panel-full-span">
             <div className="panel-head">
               <div>
-                <h3>공휴일 패턴</h3>
-                <p>최근 8개 공휴일 날짜별 시간대 잔여 주차면</p>
+                <h3>공휴일/토/일요일 패턴</h3>
+                <p>최근 공휴일/토/일요일 날짜별 시간대 잔여 주차면</p>
               </div>
             </div>
             {holidayPatternItems.length === 0 ? (
-              <p className="notice">표시할 공휴일 패턴 데이터가 없습니다.</p>
+              <p className="notice">표시할 공휴일/토/일요일 패턴 데이터가 없습니다.</p>
             ) : (
               <>
                 {holidayPatterns?.error_message ? (
@@ -684,7 +684,7 @@ export function DashboardScreen({
                   <table className="heatmap-table holiday-heatmap-table">
                     <thead>
                       <tr>
-                        <th>공휴일</th>
+                        <th>특수일</th>
                         {HOURS.map((hour) => (
                           <th key={`holiday-hour-${hour}`}>{String(hour).padStart(2, "0")}</th>
                         ))}

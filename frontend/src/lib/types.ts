@@ -174,6 +174,7 @@ export type HolidaySummaryResponse = {
 export type HolidayPatternItem = {
   local_date: string;
   name: string;
+  day_type: "holiday" | "saturday" | "sunday";
   weekday: number;
   weekday_name: string;
   average_available_spaces: number | null;

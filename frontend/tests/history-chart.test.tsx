@@ -27,6 +27,25 @@ function buildHolidays(): HolidayItemSummary[] {
   return [{ local_date: "2026-04-24", name: "테스트 공휴일", weekday: 4, weekday_name: "금" }];
 }
 
+function buildWeekendSeries(): ParkingTimeSeriesResponse {
+  const start = new Date("2026-04-24T15:00:00.000Z").getTime();
+
+  return {
+    generated_at: "2026-04-26T03:00:00.000Z",
+    airport_code: "CJU",
+    parking_lot_id: 1,
+    days: 7,
+    interval_minutes: 30,
+    items: Array.from({ length: 97 }, (_, index) => ({
+      bucket_at: new Date(start + index * 30 * 60 * 1000).toISOString(),
+      available_spaces: 140 + (index % 20),
+      occupied_spaces: 460 - (index % 20),
+      total_spaces: 600,
+      lot_observations: 1,
+    })),
+  };
+}
+
 describe("HistoryChart", () => {
   test("renders 6 hour axis labels", () => {
     const { container } = render(
@@ -140,5 +159,19 @@ describe("HistoryChart", () => {
     expect(screen.queryByTestId("flight-marker-summary")).not.toBeInTheDocument();
     expect(screen.queryByTestId("flight-marker-list")).not.toBeInTheDocument();
     expect(screen.queryByTestId("flight-highlight-label")).not.toBeInTheDocument();
+  });
+
+  test("marks Saturdays and Sundays in the recent parking chart", () => {
+    render(
+      <HistoryChart
+        holidays={[]}
+        series={buildWeekendSeries()}
+        scopeLabel={"P1 \uC8FC\uCC28\uC7A5"}
+      />
+    );
+
+    expect(screen.getAllByTestId("holiday-band")).toHaveLength(2);
+    expect(screen.getByText("토요일")).toBeInTheDocument();
+    expect(screen.getByText("일요일")).toBeInTheDocument();
   });
 });

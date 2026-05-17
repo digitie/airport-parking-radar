@@ -27,6 +27,9 @@ def create_engine_and_session_factory(database_url: str) -> tuple[AsyncEngine, a
             cursor.execute("PRAGMA busy_timeout=5000")
             cursor.execute("PRAGMA synchronous=NORMAL")
             cursor.execute("PRAGMA journal_mode=WAL")
+            cursor.execute("PRAGMA temp_store=MEMORY")
+            cursor.execute("PRAGMA cache_size=-20000")
+            cursor.execute("PRAGMA mmap_size=268435456")
             cursor.close()
 
     session_factory = async_sessionmaker(engine, expire_on_commit=False)
@@ -78,6 +81,7 @@ async def init_database(engine: AsyncEngine) -> None:
                 "ON raw_api_responses (collection_run_id)"
             )
         )
+        await connection.execute(text("PRAGMA analysis_limit=1000"))
         await connection.execute(text("PRAGMA optimize"))
 
 

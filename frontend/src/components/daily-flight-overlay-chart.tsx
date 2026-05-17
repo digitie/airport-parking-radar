@@ -11,7 +11,7 @@ import {
 } from "@/lib/format";
 import type { FlightStatusItem, FlightStatusResponse, HolidayItemSummary, ParkingTimeSeriesResponse } from "@/lib/types";
 
-const CHART_WIDTH = 1180;
+const BASE_CHART_WIDTH = 1180;
 const CHART_HEIGHT = 320;
 const CHART_PADDING_X = 42;
 const CHART_PADDING_TOP = 30;
@@ -33,10 +33,13 @@ type DailyPoint = {
   availableSpaces: number;
 };
 
+type SpecialDayType = "holiday" | "saturday" | "sunday";
+
 type DailyLine = {
   localDate: string;
   label: string;
-  holidayName: string | null;
+  specialDayName: string | null;
+  specialDayType: SpecialDayType | null;
   points: DailyPoint[];
 };
 
@@ -61,8 +64,23 @@ function formatLocalDateLabel(localDate: string): string {
   return `${month}/${day} (${weekday})`;
 }
 
-function minuteToX(minuteOfDay: number): number {
-  const innerWidth = CHART_WIDTH - CHART_PADDING_X * 2;
+function getWeekendType(localDate: string): SpecialDayType | null {
+  const [year, month, day] = localDate.split("-").map(Number);
+  if (!year || !month || !day) {
+    return null;
+  }
+  const weekday = new Date(Date.UTC(year, month - 1, day)).getUTCDay();
+  if (weekday === 6) {
+    return "saturday";
+  }
+  if (weekday === 0) {
+    return "sunday";
+  }
+  return null;
+}
+
+function minuteToX(minuteOfDay: number, chartWidth: number): number {
+  const innerWidth = chartWidth - CHART_PADDING_X * 2;
   return CHART_PADDING_X + (Math.min(Math.max(minuteOfDay, 0), 1440) / 1440) * innerWidth;
 }
 
@@ -100,12 +118,17 @@ function buildDailyLines(
   return Array.from(grouped.entries())
     .sort(([leftDate], [rightDate]) => leftDate.localeCompare(rightDate))
     .slice(-7)
-    .map(([localDate, points]) => ({
-      localDate,
-      label: formatLocalDateLabel(localDate),
-      holidayName: holidayByDate.get(localDate) ?? null,
-      points: points.sort((left, right) => left.minuteOfDay - right.minuteOfDay),
-    }));
+    .map(([localDate, points]) => {
+      const holidayName = holidayByDate.get(localDate) ?? null;
+      const weekendType = holidayName ? null : getWeekendType(localDate);
+      return {
+        localDate,
+        label: formatLocalDateLabel(localDate),
+        specialDayName: holidayName ?? (weekendType === "saturday" ? "토요일" : weekendType === "sunday" ? "일요일" : null),
+        specialDayType: holidayName ? "holiday" : weekendType,
+        points: points.sort((left, right) => left.minuteOfDay - right.minuteOfDay),
+      };
+    });
 }
 
 function buildStepPath(points: PositionedPoint[]): string {
@@ -136,7 +159,7 @@ function buildFlightLabel(flight: FlightStatusItem): string {
   return `${formatDateTime(flight.marker_at)} ${formatFlightDirection(flight.direction)} ${airlineLabel}${flight.flight_number} ${flight.origin_airport} -> ${flight.destination_airport}${statusLabel}`;
 }
 
-function buildFlightMarkers(flightStatus: FlightStatusResponse | null): FlightMarker[] {
+function buildFlightMarkers(flightStatus: FlightStatusResponse | null, chartWidth: number): FlightMarker[] {
   if (!flightStatus || flightStatus.items.length === 0) {
     return [];
   }
@@ -146,7 +169,7 @@ function buildFlightMarkers(flightStatus: FlightStatusResponse | null): FlightMa
     return {
       ...flight,
       key: `${flight.direction}-${flight.marker_at}-${flight.origin_airport}-${flight.destination_airport}-${flight.flight_number}`,
-      x: minuteToX(hour * 60 + minute),
+      x: minuteToX(hour * 60 + minute, chartWidth),
       y: CHART_PADDING_TOP + 10 + (index % 4) * 9,
       label: buildFlightLabel(flight),
     };
@@ -162,9 +185,11 @@ export function DailyFlightOverlayChart({
   const [hiddenDates, setHiddenDates] = useState<Set<string>>(() => new Set());
   const [showDepartures, setShowDepartures] = useState(true);
   const [showArrivals, setShowArrivals] = useState(true);
+  const [useWideAxis, setUseWideAxis] = useState(false);
   const [hoveredFlightKey, setHoveredFlightKey] = useState<string | null>(null);
   const [selectedFlightKey, setSelectedFlightKey] = useState<string | null>(null);
 
+  const chartWidth = BASE_CHART_WIDTH * (useWideAxis ? 4 : 1);
   const dailyLines = useMemo(() => buildDailyLines(series, holidays), [holidays, series]);
   const maxValue = Math.max(...dailyLines.flatMap((line) => line.points.map((point) => point.availableSpaces)), 1);
   const visibleLines = dailyLines.filter((line) => !hiddenDates.has(line.localDate));
@@ -172,13 +197,13 @@ export function DailyFlightOverlayChart({
     ...line,
     points: line.points.map((point) => ({
       ...point,
-      x: minuteToX(point.minuteOfDay),
+      x: minuteToX(point.minuteOfDay, chartWidth),
       y: valueToY(point.availableSpaces, maxValue),
     })),
   }));
   const flightMarkers = useMemo(
     () =>
-      buildFlightMarkers(flightStatus).filter((marker) => {
+      buildFlightMarkers(flightStatus, chartWidth).filter((marker) => {
         if (marker.direction === "departure") {
           return showDepartures;
         }
@@ -187,7 +212,7 @@ export function DailyFlightOverlayChart({
         }
         return showDepartures || showArrivals;
       }),
-    [flightStatus, showArrivals, showDepartures]
+    [chartWidth, flightStatus, showArrivals, showDepartures]
   );
   const departureCount = flightMarkers.filter((marker) => marker.direction === "departure").length;
   const arrivalCount = flightMarkers.filter((marker) => marker.direction === "arrival").length;
@@ -210,7 +235,7 @@ export function DailyFlightOverlayChart({
     <article className="panel-surface panel-full-span daily-overlay-panel">
       <div className="panel-head">
         <div>
-          <h3>일단위 잔여 주차면 변화</h3>
+          <h3>일 단위 잔여 주차면 변화</h3>
           <p>최근 7일 · {scopeLabel}</p>
         </div>
       </div>
@@ -227,12 +252,14 @@ export function DailyFlightOverlayChart({
                   <button
                     key={line.localDate}
                     aria-pressed={!isHidden}
-                    className={`daily-date-toggle ${line.holidayName ? "holiday" : ""} ${isHidden ? "is-off" : ""}`}
+                    className={`daily-date-toggle ${line.specialDayType ? `special-day ${line.specialDayType}` : ""} ${
+                      isHidden ? "is-off" : ""
+                    }`}
                     type="button"
                     onClick={() => toggleDate(line.localDate)}
                   >
                     <strong>{line.label}</strong>
-                    {line.holidayName ? <small>{line.holidayName}</small> : null}
+                    {line.specialDayName ? <small>{line.specialDayName}</small> : null}
                   </button>
                 );
               })}
@@ -255,11 +282,20 @@ export function DailyFlightOverlayChart({
                 />
                 <span>도착편</span>
               </label>
+              <label className="toggle-check">
+                <input
+                  checked={useWideAxis}
+                  data-testid="daily-wide-axis-toggle"
+                  type="checkbox"
+                  onChange={(event) => setUseWideAxis(event.target.checked)}
+                />
+                <span>X축 4배</span>
+              </label>
             </div>
           </div>
 
           <div className="daily-overlay-chart-shell" data-testid="daily-flight-overlay-chart">
-            <div className="daily-overlay-chart-stage">
+            <div className="daily-overlay-chart-stage" style={{ width: `${chartWidth}px` }}>
               {activeFlight ? (
                 <div
                   className="flight-highlight-label daily-flight-highlight"
@@ -277,10 +313,10 @@ export function DailyFlightOverlayChart({
               ) : null}
 
               <svg
-                aria-label={`최근 7일 ${scopeLabel} 일단위 잔여 주차면 변화`}
+                aria-label={`최근 7일 ${scopeLabel} 일 단위 잔여 주차면 변화`}
                 className="daily-overlay-chart"
                 role="img"
-                viewBox={`0 0 ${CHART_WIDTH} ${CHART_HEIGHT}`}
+                viewBox={`0 0 ${chartWidth} ${CHART_HEIGHT}`}
               >
                 {Array.from({ length: GRID_LINES }, (_, index) => {
                   const y =
@@ -292,7 +328,7 @@ export function DailyFlightOverlayChart({
                       key={`daily-grid-${index}`}
                       className="history-grid-line"
                       x1={CHART_PADDING_X}
-                      x2={CHART_WIDTH - CHART_PADDING_X}
+                      x2={chartWidth - CHART_PADDING_X}
                       y1={y}
                       y2={y}
                     />
@@ -300,7 +336,7 @@ export function DailyFlightOverlayChart({
                 })}
 
                 {HOURS.map((hour) => {
-                  const x = minuteToX(hour * 60);
+                  const x = minuteToX(hour * 60, chartWidth);
                   return (
                     <g key={`daily-hour-${hour}`}>
                       <line
@@ -318,16 +354,19 @@ export function DailyFlightOverlayChart({
                 })}
 
                 {positionedLines.map((line, index) => (
-                  <g key={`daily-line-${line.localDate}`} className={line.holidayName ? "daily-line-holiday" : ""}>
+                  <g
+                    key={`daily-line-${line.localDate}`}
+                    className={line.specialDayType ? `daily-line-special daily-line-${line.specialDayType}` : ""}
+                  >
                     <path
                       className={`daily-line daily-line-${index % 7}`}
                       d={buildStepPath(line.points)}
                       fill="none"
                       data-testid="daily-overlay-line"
                     />
-                    {line.holidayName && line.points.length > 0 ? (
+                    {line.specialDayType && line.points.length > 0 ? (
                       <rect
-                        className="daily-holiday-marker"
+                        className={`daily-holiday-marker daily-holiday-marker-${line.specialDayType}`}
                         height="9"
                         width="9"
                         x={line.points[line.points.length - 1].x - 4.5}
@@ -365,7 +404,7 @@ export function DailyFlightOverlayChart({
 
           <div className="daily-overlay-legend">
             <span>
-              비행편: 출발 {formatNumber(departureCount)}편 / 도착 {formatNumber(arrivalCount)}편
+              비행편 출발 {formatNumber(departureCount)}편 / 도착 {formatNumber(arrivalCount)}편
             </span>
             {flightStatus?.error_message ? <span className="flight-marker-error">{flightStatus.error_message}</span> : null}
           </div>

@@ -114,8 +114,29 @@ describe("DailyFlightOverlayChart", () => {
     expect(screen.getByText("12:00")).toBeInTheDocument();
     expect(screen.getByText("18:00")).toBeInTheDocument();
     expect(screen.getByText("24:00")).toBeInTheDocument();
+    expect(screen.getByText("토요일")).toBeInTheDocument();
+    expect(screen.getByText("일요일")).toBeInTheDocument();
     expect(screen.getByText("테스트 공휴일")).toBeInTheDocument();
+    expect(container.querySelectorAll(".daily-line-special")).toHaveLength(3);
     expect(container.querySelector(".daily-line-holiday")).not.toBeNull();
+  });
+
+  test("expands the daily x axis four times", async () => {
+    const user = userEvent.setup();
+    const { container } = render(
+      <DailyFlightOverlayChart
+        flightStatus={buildFlightStatus()}
+        holidays={buildHolidays()}
+        series={buildSeries()}
+        scopeLabel="P1 주차장"
+      />
+    );
+
+    expect(container.querySelector(".daily-overlay-chart")?.getAttribute("viewBox")).toBe("0 0 1180 320");
+
+    await user.click(screen.getByTestId("daily-wide-axis-toggle"));
+
+    expect(container.querySelector(".daily-overlay-chart")?.getAttribute("viewBox")).toBe("0 0 4720 320");
   });
 
   test("hides and shows a selected date line", async () => {

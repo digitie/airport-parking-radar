@@ -150,6 +150,7 @@ const holidayPatterns: HolidayPatternResponse = {
     {
       local_date: "2026-04-25",
       name: "테스트 공휴일",
+      day_type: "holiday",
       weekday: 5,
       weekday_name: "토",
       average_available_spaces: 35,
@@ -332,7 +333,7 @@ describe("DashboardScreen", () => {
     expect(screen.getByRole("button", { name: "즉시 수집 실행" })).toBeInTheDocument();
     expect(screen.getAllByText("국내선 제1주차장").length).toBeGreaterThan(0);
     expect(screen.getAllByText("잔여/전체").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("일단위 잔여 주차면 변화").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("일 단위 잔여 주차면 변화").length).toBeGreaterThan(0);
     expect(screen.getByText("요일별 상세 패턴")).toBeInTheDocument();
     expect(screen.getAllByTestId("mobile-disclosure").length).toBeGreaterThanOrEqual(4);
   });

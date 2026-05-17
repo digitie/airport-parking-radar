@@ -46,7 +46,7 @@ from app.schemas import (
     WeekdayHourlyPattern,
 )
 from app.services.analytics import (
-    build_holiday_patterns,
+    build_special_day_patterns,
     build_threshold_insights,
     build_hourly_buckets,
     build_time_series,
@@ -74,7 +74,13 @@ from app.services.analytics_cache import (
 from app.services.collection import CollectionService
 from app.services.fee_calculator import calculate_total_fee
 from app.services.flight_status import FlightStatusService
-from app.services.holidays import HolidayService, WEEKDAY_LABELS as HOLIDAY_WEEKDAY_LABELS, collapse_holidays_by_date, format_holiday_sentence
+from app.services.holidays import (
+    HolidayItem,
+    HolidayService,
+    WEEKDAY_LABELS as HOLIDAY_WEEKDAY_LABELS,
+    collapse_holidays_by_date,
+    format_holiday_sentence,
+)
 from app.services.sample_data import seed_sample_database
 
 logger = logging.getLogger(__name__)
@@ -215,27 +221,26 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             if airport_id is None:
                 return ParkingCurrentResponse(generated_at=now_utc(), items=[])
 
-        ranked_snapshots = select(
-            ParkingSnapshot.id.label("snapshot_id"),
-            func.row_number()
-            .over(
-                partition_by=ParkingSnapshot.parking_lot_id,
-                order_by=(ParkingSnapshot.observed_at.desc(), ParkingSnapshot.id.desc()),
+        latest_snapshot_id = (
+            select(ParkingSnapshot.id)
+            .where(
+                ParkingSnapshot.airport_id == ParkingLot.airport_id,
+                ParkingSnapshot.parking_lot_id == ParkingLot.id,
             )
-            .label("snapshot_rank"),
+            .order_by(ParkingSnapshot.observed_at.desc(), ParkingSnapshot.id.desc())
+            .limit(1)
+            .correlate(ParkingLot)
+            .scalar_subquery()
         )
-        if airport_id is not None:
-            ranked_snapshots = ranked_snapshots.where(ParkingSnapshot.airport_id == airport_id)
-
-        latest_snapshots = ranked_snapshots.subquery()
         query = (
             select(ParkingSnapshot, ParkingLot, Airport)
-            .join(latest_snapshots, latest_snapshots.c.snapshot_id == ParkingSnapshot.id)
-            .join(ParkingLot, ParkingLot.id == ParkingSnapshot.parking_lot_id)
-            .join(Airport, Airport.id == ParkingSnapshot.airport_id)
-            .where(latest_snapshots.c.snapshot_rank == 1)
+            .select_from(ParkingLot)
+            .join(Airport, Airport.id == ParkingLot.airport_id)
+            .join(ParkingSnapshot, ParkingSnapshot.id == latest_snapshot_id)
             .order_by(ParkingLot.id)
         )
+        if airport_id is not None:
+            query = query.where(ParkingLot.airport_id == airport_id)
 
         rows = (await session.execute(query)).all()
         items = [
@@ -421,11 +426,13 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         service: HolidayService = Depends(get_holiday_service),
     ) -> HolidayPatternResponse:
         today = to_seoul(now_utc()).date()
-        holiday_result = await service.get_recent_holidays(today, limit=limit)
-        holiday_items = holiday_result.items
+        lookback_days = max(90, limit * 14)
+        holiday_result = await service.get_holidays(today - timedelta(days=lookback_days), today)
+        holiday_items = collapse_holidays_by_date(holiday_result.items)
+        special_days = _build_recent_special_days(today, holiday_items, limit)
         snapshots: list[ParkingSnapshot] = []
-        if holiday_items:
-            local_dates = [item.local_date for item in holiday_items]
+        if special_days:
+            local_dates = [local_date for local_date, _name, _day_type in special_days]
             snapshots = await _load_snapshots_between_local_dates(
                 session,
                 airport_code,
@@ -443,9 +450,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             error_message=holiday_result.error_message,
             items=[
                 HolidayPatternItem(**pattern)
-                for pattern in build_holiday_patterns(
+                for pattern in build_special_day_patterns(
                     snapshots,
-                    [(item.local_date, item.name) for item in holiday_items],
+                    special_days,
                     tz_name=resolved_settings.app_timezone,
                 )
             ],
@@ -762,6 +769,25 @@ def _build_holiday_summary_item(local_date: date, name: str) -> HolidayItemSumma
         weekday=weekday,
         weekday_name=HOLIDAY_WEEKDAY_LABELS[weekday],
     )
+
+
+def _build_recent_special_days(
+    today: date,
+    holiday_items: list[HolidayItem],
+    limit: int,
+) -> list[tuple[date, str, str]]:
+    holiday_names = {item.local_date: item.name for item in holiday_items}
+    special_days: list[tuple[date, str, str]] = []
+    cursor = today
+    while len(special_days) < limit:
+        if cursor in holiday_names:
+            special_days.append((cursor, holiday_names[cursor], "holiday"))
+        elif cursor.weekday() == 5:
+            special_days.append((cursor, "토요일", "saturday"))
+        elif cursor.weekday() == 6:
+            special_days.append((cursor, "일요일", "sunday"))
+        cursor -= timedelta(days=1)
+    return special_days
 
 
 async def _run_scheduler(app: FastAPI) -> None:

@@ -465,6 +465,21 @@ select {
   stroke-width: 1;
 }
 
+.holiday-band-holiday {
+  fill: rgba(37, 99, 235, 0.09);
+  stroke: rgba(37, 99, 235, 0.18);
+}
+
+.holiday-band-saturday {
+  fill: rgba(12, 139, 125, 0.08);
+  stroke: rgba(12, 139, 125, 0.18);
+}
+
+.holiday-band-sunday {
+  fill: rgba(220, 38, 38, 0.08);
+  stroke: rgba(220, 38, 38, 0.2);
+}
+
 .holiday-band-label {
   fill: #1d4ed8;
   font-size: 11px;
@@ -768,8 +783,19 @@ select {
   font-size: 0.72rem;
 }
 
+.daily-date-toggle.special-day.holiday,
 .daily-date-toggle.holiday {
   color: #1d4ed8;
+}
+
+.daily-date-toggle.saturday,
+.daily-date-toggle.saturday small {
+  color: var(--teal);
+}
+
+.daily-date-toggle.sunday,
+.daily-date-toggle.sunday small {
+  color: var(--red);
 }
 
 .daily-date-toggle.is-off {
@@ -850,6 +876,7 @@ select {
   stroke: #334155;
 }
 
+.daily-line-special .daily-line,
 .daily-line-holiday .daily-line {
   stroke-dasharray: 7 6;
   stroke-width: 3.2;
@@ -859,6 +886,18 @@ select {
   fill: white;
   stroke: #1d4ed8;
   stroke-width: 2;
+}
+
+.daily-holiday-marker-holiday {
+  stroke: #1d4ed8;
+}
+
+.daily-holiday-marker-saturday {
+  stroke: var(--teal);
+}
+
+.daily-holiday-marker-sunday {
+  stroke: var(--red);
 }
 
 .daily-flight-marker {
@@ -1805,10 +1844,22 @@ select {
   }
 
   .holiday-band-label,
+  .daily-date-toggle.special-day,
+  .daily-date-toggle.special-day small,
   .daily-date-toggle.holiday,
   .daily-date-toggle small {
     color: #8ab4ff;
     fill: #8ab4ff;
+  }
+
+  .daily-date-toggle.saturday,
+  .daily-date-toggle.saturday small {
+    color: #5eead4;
+  }
+
+  .daily-date-toggle.sunday,
+  .daily-date-toggle.sunday small {
+    color: #fda4af;
   }
 
   .history-point,

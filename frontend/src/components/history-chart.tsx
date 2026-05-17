@@ -38,7 +38,13 @@ type AxisMarker = {
   timeLabel: string;
 };
 
-type HolidayChartBand = HolidayItemSummary & {
+type SpecialDayType = "holiday" | "saturday" | "sunday";
+
+type SpecialDaySummary = HolidayItemSummary & {
+  day_type: SpecialDayType;
+};
+
+type HolidayChartBand = SpecialDaySummary & {
   x: number;
   width: number;
   labelX: number;
@@ -130,8 +136,62 @@ function buildStepAreaPath(points: ChartPoint[]): string {
   return path.join(" ");
 }
 
-function buildHolidayBands(holidays: HolidayItemSummary[], points: ChartPoint[], chartWidth: number): HolidayChartBand[] {
-  if (holidays.length === 0 || points.length === 0) {
+function getLocalDateWeekendType(localDate: string): SpecialDayType | null {
+  const [year, month, day] = localDate.split("-").map(Number);
+  if (!year || !month || !day) {
+    return null;
+  }
+  const weekday = new Date(Date.UTC(year, month - 1, day)).getUTCDay();
+  if (weekday === 6) {
+    return "saturday";
+  }
+  if (weekday === 0) {
+    return "sunday";
+  }
+  return null;
+}
+
+function buildSpecialDays(holidays: HolidayItemSummary[], points: ChartPoint[]): SpecialDaySummary[] {
+  const holidaysByDate = new Map(
+    holidays.map((holiday) => [
+      holiday.local_date,
+      {
+        ...holiday,
+        day_type: "holiday" as const,
+      },
+    ])
+  );
+  const localDates = Array.from(new Set(points.map((point) => formatSeoulDateKey(point.bucket_at)))).sort();
+
+  return localDates.flatMap((localDate) => {
+    const holiday = holidaysByDate.get(localDate);
+    if (holiday) {
+      return [holiday];
+    }
+
+    const weekendType = getLocalDateWeekendType(localDate);
+    if (!weekendType) {
+      return [];
+    }
+
+    return [
+      {
+        local_date: localDate,
+        name: weekendType === "saturday" ? "토요일" : "일요일",
+        day_type: weekendType,
+        weekday: weekendType === "saturday" ? 5 : 6,
+        weekday_name: weekendType === "saturday" ? "토" : "일",
+      },
+    ];
+  });
+}
+
+function buildSpecialDayBands(
+  specialDays: SpecialDaySummary[],
+  points: ChartPoint[],
+  chartWidth: number
+): HolidayChartBand[] {
+  if (specialDays.length === 0 || points.length === 0) {
     return [];
   }
 
@@ -144,8 +204,8 @@ function buildHolidayBands(holidays: HolidayItemSummary[], points: ChartPoint[],
   const stepWidth =
     points.length > 1 ? (chartWidth - CHART_PADDING_X * 2) / Math.max(points.length - 1, 1) : chartWidth - CHART_PADDING_X * 2;
 
-  return holidays.flatMap((holiday) => {
-    const matchedPoints = pointsByDate.get(holiday.local_date) ?? [];
+  return specialDays.flatMap((specialDay) => {
+    const matchedPoints = pointsByDate.get(specialDay.local_date) ?? [];
     if (matchedPoints.length === 0) {
       return [];
     }
@@ -155,7 +215,7 @@ function buildHolidayBands(holidays: HolidayItemSummary[], points: ChartPoint[],
     const maxX = clamp(lastPoint.x + stepWidth / 2, CHART_PADDING_X, chartWidth - CHART_PADDING_X);
     return [
       {
-        ...holiday,
+        ...specialDay,
         x,
         width: Math.max(maxX - x, 1),
         labelX: x + Math.max(maxX - x, 1) / 2,
@@ -219,7 +279,7 @@ export function HistoryChart({ holidays, series, scopeLabel }: HistoryChartProps
   const chartPoints = buildChartPoints(points, chartWidth);
   const observedChartPoints = chartPoints.filter((point) => point.lot_observations > 0);
   const axisMarkers = buildAxisMarkers(chartPoints, labelIndexes);
-  const holidayBands = buildHolidayBands(holidays, chartPoints, chartWidth);
+  const holidayBands = buildSpecialDayBands(buildSpecialDays(holidays, chartPoints), chartPoints, chartWidth);
   const latestPoint = observedPoints[observedPoints.length - 1];
   const chartPointByBucket = new Map(chartPoints.map((point) => [point.bucket_at, point] as const));
   const latestChartPoint = chartPointByBucket.get(latestPoint.bucket_at);
@@ -326,9 +386,9 @@ export function HistoryChart({ holidays, series, scopeLabel }: HistoryChartProps
               ))}
 
               {holidayBands.map((band) => (
-                <g key={`holiday-band-${band.local_date}-${band.name}`}>
+                <g key={`holiday-band-${band.local_date}-${band.day_type}-${band.name}`}>
                   <rect
-                    className="holiday-band"
+                    className={`holiday-band holiday-band-${band.day_type}`}
                     data-testid="holiday-band"
                     height={CHART_HEIGHT - CHART_PADDING_Y * 2}
                     width={band.width}

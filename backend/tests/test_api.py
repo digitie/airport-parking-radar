@@ -199,6 +199,7 @@ def test_current_and_analytics(client) -> None:
     holiday_patterns_payload = holiday_patterns.json()
     assert holiday_patterns_payload["items"]
     assert len(holiday_patterns_payload["items"][0]["hourly_buckets"]) == 24
+    assert {item["day_type"] for item in holiday_patterns_payload["items"]} & {"saturday", "sunday"}
 
     threshold_payload = thresholds.json()
     assert threshold_payload

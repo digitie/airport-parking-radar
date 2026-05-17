@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime
+from typing import Literal
 
 from pydantic import BaseModel, Field
 
@@ -153,6 +154,7 @@ class HolidaySummaryResponse(BaseModel):
 class HolidayPatternItem(BaseModel):
     local_date: str
     name: str
+    day_type: Literal["holiday", "saturday", "sunday"] = "holiday"
     weekday: int
     weekday_name: str
     average_available_spaces: float | None = None
