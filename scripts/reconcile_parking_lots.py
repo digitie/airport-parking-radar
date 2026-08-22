@@ -93,13 +93,14 @@ async def reconcile(args: argparse.Namespace) -> int:
             for same_name_lots in by_name.values():
                 if len(same_name_lots) < 2:
                     continue
-                counts = dict(
+                count_rows = (
                     await session.execute(
                         select(ParkingSnapshot.parking_lot_id, func.count(ParkingSnapshot.id))
                         .where(ParkingSnapshot.parking_lot_id.in_([lot.id for lot in same_name_lots]))
                         .group_by(ParkingSnapshot.parking_lot_id)
                     )
-                )
+                ).all()
+                counts = dict(count_rows)
                 canonical = max(same_name_lots, key=lambda lot: (counts.get(lot.id, 0), -lot.id))
                 for duplicate in same_name_lots:
                     if duplicate.id == canonical.id:
