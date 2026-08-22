@@ -1,0 +1,6 @@
+{
+  "events": [
+    {"date": "2026-08-22", "event": "preflight-audit", "status": "recorded"},
+    {"date": "2026-08-22", "event": "token-layer-and-workbench-direction", "status": "started"}
+  ]
+}

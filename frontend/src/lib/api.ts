@@ -1,7 +1,11 @@
 import type {
   Airport,
+  BackupFile,
+  BackupListResponse,
   CollectionSummary,
   CollectorStatusResponse,
+  DashboardAnalyticsResponse,
+  DashboardBootstrapResponse,
   FeeCalculationRequest,
   FeeCalculationResponse,
   FlightStatusResponse,
@@ -77,12 +81,14 @@ async function readErrorMessage(response: Response): Promise<string> {
 }
 
 async function getJson<T>(url: string, init?: RequestInit): Promise<T> {
+  const headers = new Headers(init?.headers);
+  const isMultipart = typeof FormData !== "undefined" && init?.body instanceof FormData;
+  if (!isMultipart && !headers.has("Content-Type")) {
+    headers.set("Content-Type", "application/json");
+  }
   const response = await fetch(url, {
     ...init,
-    headers: {
-      "Content-Type": "application/json",
-      ...(init?.headers ?? {}),
-    },
+    headers,
     cache: "no-store",
   });
 
@@ -100,11 +106,23 @@ export function buildApiClient(apiBaseUrl?: string) {
     getAirports(): Promise<Airport[]> {
       return getJson<Airport[]>(`${baseUrl}/airports`);
     },
+    getDashboardBootstrap(airportCode?: string): Promise<DashboardBootstrapResponse> {
+      const params = airportCode ? `?airport_code=${encodeURIComponent(airportCode)}` : "";
+      return getJson<DashboardBootstrapResponse>(`${baseUrl}/dashboard/bootstrap${params}`);
+    },
     getCurrent(airportCode: string): Promise<ParkingCurrentResponse> {
       return getJson<ParkingCurrentResponse>(`${baseUrl}/parking/current?airport_code=${airportCode}`);
     },
     getCollectorStatus(): Promise<CollectorStatusResponse> {
       return getJson<CollectorStatusResponse>(`${baseUrl}/admin/collector-status`);
+    },
+    getDashboardAnalytics(
+      airportCode: string,
+      parkingLotId: number | null = null
+    ): Promise<DashboardAnalyticsResponse> {
+      return getJson<DashboardAnalyticsResponse>(
+        buildAnalyticsUrl(baseUrl, "/dashboard/analytics", airportCode, { parkingLotId })
+      );
     },
     getFlightStatus(airportCode: string): Promise<FlightStatusResponse> {
       const params = new URLSearchParams({ airport_code: airportCode });
@@ -116,6 +134,29 @@ export function buildApiClient(apiBaseUrl?: string) {
     runCollector(): Promise<CollectionSummary> {
       return getJson<CollectionSummary>(`${baseUrl}/admin/collect`, {
         method: "POST",
+      });
+    },
+    listBackups(): Promise<BackupListResponse> {
+      return getJson<BackupListResponse>(`${baseUrl}/admin/backups`);
+    },
+    createBackup(): Promise<BackupFile> {
+      return getJson<BackupFile>(`${baseUrl}/admin/backups`, { method: "POST" });
+    },
+    async downloadBackup(filename: string): Promise<Blob> {
+      const response = await fetch(`${baseUrl}/admin/backups/${encodeURIComponent(filename)}`, {
+        cache: "no-store",
+      });
+      if (!response.ok) {
+        throw new ApiError(await readErrorMessage(response), response.status);
+      }
+      return response.blob();
+    },
+    restoreBackup(file: File): Promise<{ status: "restored"; backup: BackupFile }> {
+      const formData = new FormData();
+      formData.append("file", file, file.name);
+      return getJson<{ status: "restored"; backup: BackupFile }>(`${baseUrl}/admin/backups/restore`, {
+        method: "POST",
+        body: formData,
       });
     },
     getByHour(airportCode: string, parkingLotId: number | null = null): Promise<HourlyBucket[]> {

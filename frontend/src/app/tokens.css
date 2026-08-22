@@ -1,0 +1,54 @@
+/* Hallmark stamp: parking-radar / token layer / 2026-08-22 */
+
+:root {
+  --color-canvas: oklch(97.5% 0.012 86);
+  --color-surface: oklch(99.2% 0.008 86);
+  --color-surface-raised: oklch(100% 0 0);
+  --color-ink: oklch(24% 0.026 258);
+  --color-muted: oklch(52% 0.025 258);
+  --color-line: oklch(24% 0.026 258 / 14%);
+  --color-accent: oklch(61% 0.16 43);
+  --color-accent-strong: oklch(50% 0.15 38);
+  --color-accent-soft: oklch(61% 0.16 43 / 13%);
+  --color-teal: oklch(55% 0.12 174);
+  --color-red: oklch(52% 0.16 28);
+  --color-yellow: oklch(68% 0.14 83);
+  --color-input: oklch(100% 0 0 / 88%);
+  --color-grid: oklch(24% 0.026 258 / 10%);
+  --color-sticky: oklch(95% 0.022 86);
+  --shadow-card: 0 18px 42px oklch(24% 0.026 258 / 9%);
+  --shadow-focus: 0 0 0 3px oklch(61% 0.16 43 / 30%);
+  --radius-card: 16px;
+  --radius-control: 10px;
+  --font-sans: "Pretendard Variable", "Apple SD Gothic Neo", "Noto Sans KR", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", "Consolas", monospace;
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 40px;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --color-canvas: oklch(18% 0.022 258);
+    --color-surface: oklch(23% 0.026 258);
+    --color-surface-raised: oklch(27% 0.03 258);
+    --color-ink: oklch(96% 0.012 86);
+    --color-muted: oklch(76% 0.025 258);
+    --color-line: oklch(96% 0.012 86 / 16%);
+    --color-accent: oklch(72% 0.14 58);
+    --color-accent-strong: oklch(78% 0.12 65);
+    --color-accent-soft: oklch(72% 0.14 58 / 20%);
+    --color-teal: oklch(76% 0.12 174);
+    --color-red: oklch(76% 0.13 28);
+    --color-yellow: oklch(82% 0.13 83);
+    --color-input: oklch(20% 0.025 258);
+    --color-grid: oklch(96% 0.012 86 / 14%);
+    --color-sticky: oklch(29% 0.03 258);
+    --shadow-card: 0 18px 42px oklch(0% 0 0 / 28%);
+  }
+}

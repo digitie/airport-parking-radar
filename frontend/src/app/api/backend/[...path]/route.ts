@@ -11,6 +11,8 @@ const BACKEND_INTERNAL_URL = (process.env.BACKEND_INTERNAL_URL ?? "http://localh
 const FORWARDED_REQUEST_HEADERS = new Set(["accept", "content-type"]);
 const FORWARDED_RESPONSE_HEADERS = new Set([
   "cache-control",
+  "content-disposition",
+  "content-length",
   "content-type",
   "expires",
   "pragma",
@@ -38,6 +40,18 @@ function isAllowedBackendRequest(path: string, method: string): boolean {
     return true;
   }
   if (path === "admin/collector-status" && method === "GET") {
+    return true;
+  }
+  if ((path === "dashboard/bootstrap" || path === "dashboard/analytics") && method === "GET") {
+    return true;
+  }
+  if (path === "admin/backups" && (method === "GET" || method === "POST")) {
+    return true;
+  }
+  if (path === "admin/backups/restore" && method === "POST") {
+    return true;
+  }
+  if (/^admin\/backups\/[^/]+$/.test(path) && method === "GET") {
     return true;
   }
   if (path === "admin/collect" && method === "POST") {

@@ -258,3 +258,28 @@ export type FeeCalculationResponse = {
   message: string | null;
   breakdown: FeeBreakdown[];
 };
+
+export type BackupFile = {
+  filename: string;
+  size_bytes: number;
+  created_at: string;
+};
+
+export type BackupListResponse = {
+  items: BackupFile[];
+};
+
+export type DashboardBootstrapResponse = {
+  airports: Airport[];
+  current: ParkingCurrentResponse;
+  collector: CollectorStatusResponse;
+  holidays: HolidaySummaryResponse;
+};
+
+export type DashboardAnalyticsResponse = {
+  threshold_events: ThresholdEvent[];
+  threshold_insights: ThresholdInsightsResponse;
+  weekday_hour_patterns: WeekdayHourlyPattern[];
+  holiday_patterns: HolidayPatternResponse;
+  time_series: ParkingTimeSeriesResponse;
+};

@@ -3,6 +3,7 @@
 import { startTransition, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { DashboardScreen } from "@/components/dashboard-screen";
+import { BackupPanel } from "@/components/backup-panel";
 import { FeeCalculator } from "@/components/fee-calculator";
 import { buildApiClient } from "@/lib/api";
 import {
@@ -13,6 +14,8 @@ import { formatDateTime } from "@/lib/format";
 import type {
   Airport,
   CollectorStatusResponse,
+  DashboardAnalyticsResponse,
+  DashboardBootstrapResponse,
   FlightStatusResponse,
   HolidayPatternResponse,
   HolidaySummaryResponse,
@@ -74,6 +77,10 @@ function buildHolidayPatternError(airportCode: string, parkingLotId: number | nu
     error_message: caughtError instanceof Error ? caughtError.message : "공휴일/토/일요일 패턴을 불러오지 못했습니다.",
     items: [],
   };
+}
+
+function buildDashboardAnalyticsError(caughtError: unknown): DashboardAnalyticsResponse {
+  throw caughtError instanceof Error ? caughtError : new Error("분석 데이터를 불러오지 못했습니다.");
 }
 
 function withTimeout<T>(promise: Promise<T>, timeoutMs: number, buildFallback: () => T): Promise<T> {
@@ -177,27 +184,17 @@ export function DashboardApp({
           flightStatusTimeoutMs,
           () => buildFlightStatusError(airportCode, new Error("비행편 정보 응답이 지연되어 주차 현황을 먼저 표시합니다."))
         );
-        const holidayPatternsRequest = api
-          .getHolidayPatterns(airportCode, { parkingLotId })
-          .catch((caughtError) => buildHolidayPatternError(airportCode, parkingLotId, caughtError));
-
-        const [thresholds, thresholdDetail, weekdayHourly, holidayPatternDetail, timeseries, flights] = await Promise.all([
-          api.getThresholdEvents(airportCode, parkingLotId),
-          api.getThresholdInsights(airportCode, { parkingLotId }),
-          api.getByWeekdayHour(airportCode, parkingLotId),
-          holidayPatternsRequest,
-          api.getTimeSeries(airportCode, { parkingLotId }),
-          flightStatusRequest,
-        ]);
+        const analyticsRequest = api.getDashboardAnalytics(airportCode, parkingLotId).catch(buildDashboardAnalyticsError);
+        const [analytics, flights] = await Promise.all([analyticsRequest, flightStatusRequest]);
 
         if (!mountedRef.current || analyticsRequestIdRef.current !== requestId) {
           return;
         }
-        setThresholdEvents(thresholds);
-        setThresholdInsights(thresholdDetail);
-        setWeekdayHourlyPatterns(weekdayHourly);
-        setHolidayPatterns(holidayPatternDetail);
-        setTimeSeries(timeseries);
+        setThresholdEvents(analytics.threshold_events);
+        setThresholdInsights(analytics.threshold_insights);
+        setWeekdayHourlyPatterns(analytics.weekday_hour_patterns);
+        setHolidayPatterns(analytics.holiday_patterns);
+        setTimeSeries(analytics.time_series);
         setFlightStatus(flights);
         analyticsLoadedScopeRef.current = scopeKey;
       } catch (caughtError) {
@@ -239,19 +236,14 @@ export function DashboardApp({
       setError(null);
 
       try {
-        const coreHolidaySummaryRequest = api.getHolidaySummary().catch(buildHolidaySummaryError);
-        const [coreCurrent, coreStatus, coreHolidays] = await Promise.all([
-          api.getCurrent(airportCode),
-          api.getCollectorStatus(),
-          coreHolidaySummaryRequest,
-        ]);
+        const bootstrap = await api.getDashboardBootstrap(airportCode);
         if (!mountedRef.current || loadRequestIdRef.current !== requestId) {
           return;
         }
-        setCurrentItems(coreCurrent.items);
-        setCollectorStatus(coreStatus);
-        latestBackendUpdateMarkerRef.current = buildBackendUpdateMarker(coreStatus);
-        setHolidaySummary(coreHolidays);
+        setCurrentItems(bootstrap.current.items);
+        setCollectorStatus(bootstrap.collector);
+        latestBackendUpdateMarkerRef.current = buildBackendUpdateMarker(bootstrap.collector);
+        setHolidaySummary(bootstrap.holidays);
         if (showLoading) {
           setLoading(false);
         }
@@ -278,7 +270,8 @@ export function DashboardApp({
 
     async function bootstrap() {
       try {
-        const loadedAirports = await api.getAirports();
+        const bootstrapPayload: DashboardBootstrapResponse = await api.getDashboardBootstrap();
+        const loadedAirports = bootstrapPayload.airports;
         if (!active) {
           return;
         }
@@ -299,8 +292,15 @@ export function DashboardApp({
         setSelectedAirportCode(initialAirportCode);
         setSelectedParkingLotId(initialParkingLotId);
 
-        if (initialAirportCode) {
-          await loadAirportData(initialAirportCode, initialParkingLotId);
+        if (initialAirportCode && active) {
+          setCurrentItems(bootstrapPayload.current.items);
+          setCollectorStatus(bootstrapPayload.collector);
+          latestBackendUpdateMarkerRef.current = buildBackendUpdateMarker(bootstrapPayload.collector);
+          setHolidaySummary(bootstrapPayload.holidays);
+          setLoading(false);
+          if (analyticsVisibleRef.current) {
+            void loadAnalyticsData(initialAirportCode, initialParkingLotId);
+          }
         } else {
           setLoading(false);
         }
@@ -318,7 +318,7 @@ export function DashboardApp({
     return () => {
       active = false;
     };
-  }, [api, loadAirportData]);
+  }, [api, loadAnalyticsData]);
 
   useEffect(() => {
     if (!selectedAirportCode) {
@@ -505,6 +505,12 @@ export function DashboardApp({
               onCalculate={api.calculateFee}
             />
           )}
+          <BackupPanel
+            listBackups={api.listBackups}
+            createBackup={api.createBackup}
+            downloadBackup={api.downloadBackup}
+            restoreBackup={api.restoreBackup}
+          />
         </div>
       ) : null}
     </>

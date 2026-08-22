@@ -1,0 +1,9 @@
+{
+  "project": "parking-radar",
+  "audited_at": "2026-08-22",
+  "scope": ["frontend/src/app/globals.css", "frontend/src/components/dashboard-screen.tsx", "frontend/src/components/dashboard-app.tsx"],
+  "mode": "in-place operational dashboard redesign",
+  "findings_report": "docs/reports/hallmark-audit-2026-08-22.md",
+  "live_visual_check_required": true,
+  "target_host": "192.168.1.14"
+}

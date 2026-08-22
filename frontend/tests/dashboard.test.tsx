@@ -235,6 +235,8 @@ const collectorStatus: CollectorStatusResponse = {
   latest_snapshot_collected_at: "2026-04-25T00:30:00.000Z",
   manual_collect_available_at: "2026-04-25T00:35:00.000Z",
   manual_collect_blocked: false,
+  upstream_rate_limited: false,
+  upstream_rate_limited_until: null,
   last_run: null,
   recent_runs: [],
 };
