@@ -11,6 +11,7 @@ cutover 동안 HTTP read-only source로 유지하며 Docker를 조작하지 않�
 
 - 14번 운영 기본 주기: `COLLECT_INTERVAL_SECONDS=300` (5분)
 - 수동 수집 제한: `MANUAL_COLLECT_MIN_INTERVAL_SECONDS=300` (5분)
+- scheduler는 collection duration을 포함해 다음 시작 시각을 monotonic deadline으로 계산한다. 수집이 5분을 넘으면 지연을 숨기지 않고 즉시 다음 tick을 시작하며, 운영 verifier가 freshness를 별도로 gate한다.
 - 외부 API가 같은 `observed_at`을 반복하면 unique key에 의해 새 snapshot이 생기지
   않을 수 있다. 따라서 row 수와 함께 `observed_at`, `collected_at`, `last_run`을 확인한다.
 

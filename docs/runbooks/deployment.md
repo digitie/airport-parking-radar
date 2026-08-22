@@ -9,7 +9,8 @@
    API key를 입력한다.
 2. WSL 로컬 테스트와 `docker compose config`를 통과시킨다.
 3. [`scripts/deploy-server14.sh`](../../scripts/deploy-server14.sh)를 실행한다. 이
-   스크립트는 14번의 `docker compose`만 호출하며 다른 Compose project를 중지하지 않는다.
+   스크립트는 대상 host가 `192.168.1.14`이고 Compose project가 `parking-radar`인지 먼저
+   확인한 뒤 14번의 `docker compose`만 호출하며 다른 Compose project를 중지하지 않는다.
 4. [migration.md](migration.md)의 prewarm → final delta → 240초 이내 cutover 검증을
    완료한다.
 
@@ -30,6 +31,10 @@ REMOTE_APP_DIR=/home/digitie/apps/parking-radar \
 - Docker 내부 backend: `http://backend:8000`
 - 외부 API: `https://pr-api.digitie.mywire.org`
 - 외부 live E2E: `https://pr.digitie.mywire.org`
+
+외부 reverse proxy가 두 host를 각각 14번의 `14000`/`14001`로 전달해야 한다. 14번 host에는
+443 listener가 없을 수 있으므로 Compose 배포만으로 기존 `pr.digitie.mywire.org`의 외부
+라우팅이 바뀐다고 가정하지 않는다.
 
 ## 로컬 개발 실행
 

@@ -13,6 +13,28 @@ function canUseStorage(storage: StorageLike | null | undefined): storage is Stor
   return storage !== null && storage !== undefined;
 }
 
+function getDefaultStorage(): StorageLike | null {
+  try {
+    return typeof window !== "undefined" ? window.localStorage : null;
+  } catch {
+    return null;
+  }
+}
+
+function normalizeSelection(parsed: Partial<StoredDashboardSelection>): StoredDashboardSelection | null {
+  const airportCode = typeof parsed.airportCode === "string" ? parsed.airportCode.trim() : "";
+  const parkingLotId = parsed.parkingLotId;
+  if (!airportCode) {
+    return null;
+  }
+
+  return {
+    airportCode,
+    parkingLotId:
+      typeof parkingLotId === "number" && Number.isSafeInteger(parkingLotId) && parkingLotId > 0 ? parkingLotId : null,
+  };
+}
+
 function readSelectionCookie(): StoredDashboardSelection | null {
   if (typeof document === "undefined") {
     return null;
@@ -28,13 +50,7 @@ function readSelectionCookie(): StoredDashboardSelection | null {
 
   try {
     const parsed = JSON.parse(decodeURIComponent(cookie.slice(DASHBOARD_SELECTION_COOKIE_KEY.length + 1))) as Partial<StoredDashboardSelection>;
-    if (typeof parsed.airportCode !== "string") {
-      return null;
-    }
-    return {
-      airportCode: parsed.airportCode,
-      parkingLotId: typeof parsed.parkingLotId === "number" ? parsed.parkingLotId : null,
-    };
+    return normalizeSelection(parsed);
   } catch {
     return null;
   }
@@ -44,26 +60,29 @@ function writeSelectionCookie(selection: StoredDashboardSelection): void {
   if (typeof document === "undefined") {
     return;
   }
-  document.cookie = `${DASHBOARD_SELECTION_COOKIE_KEY}=${encodeURIComponent(JSON.stringify(selection))}; Max-Age=${DASHBOARD_SELECTION_COOKIE_MAX_AGE_SECONDS}; Path=/; SameSite=Lax`;
+  try {
+    const secure = typeof location !== "undefined" && location.protocol === "https:" ? "; Secure" : "";
+    document.cookie = `${DASHBOARD_SELECTION_COOKIE_KEY}=${encodeURIComponent(JSON.stringify(selection))}; Max-Age=${DASHBOARD_SELECTION_COOKIE_MAX_AGE_SECONDS}; Path=/; SameSite=Lax${secure}`;
+  } catch {
+    // Cookie writes can be blocked by browser privacy settings.
+  }
 }
 
 export function readStoredDashboardSelection(
-  storage: StorageLike | null | undefined = typeof window !== "undefined" ? window.localStorage : null
+  storage: StorageLike | null | undefined = getDefaultStorage()
 ): StoredDashboardSelection | null {
   if (canUseStorage(storage)) {
-    const raw = storage.getItem(DASHBOARD_SELECTION_STORAGE_KEY);
-    if (raw) {
-      try {
+    try {
+      const raw = storage.getItem(DASHBOARD_SELECTION_STORAGE_KEY);
+      if (raw) {
         const parsed = JSON.parse(raw) as Partial<StoredDashboardSelection>;
-        if (typeof parsed.airportCode === "string") {
-          return {
-            airportCode: parsed.airportCode,
-            parkingLotId: typeof parsed.parkingLotId === "number" ? parsed.parkingLotId : null,
-          };
+        const selection = normalizeSelection(parsed);
+        if (selection) {
+          return selection;
         }
-      } catch {
-        // Fall through to the cookie fallback.
       }
+    } catch {
+      // Fall through to the cookie fallback.
     }
   }
 
@@ -72,13 +91,16 @@ export function readStoredDashboardSelection(
 
 export function writeStoredDashboardSelection(
   selection: StoredDashboardSelection,
-  storage: StorageLike | null | undefined = typeof window !== "undefined" ? window.localStorage : null
+  storage: StorageLike | null | undefined = getDefaultStorage()
 ): void {
-  if (!canUseStorage(storage)) {
-    return;
+  if (canUseStorage(storage)) {
+    try {
+      storage.setItem(DASHBOARD_SELECTION_STORAGE_KEY, JSON.stringify(selection));
+    } catch {
+      // Always continue to the cookie fallback when localStorage is unavailable.
+    }
   }
 
-  storage.setItem(DASHBOARD_SELECTION_STORAGE_KEY, JSON.stringify(selection));
   writeSelectionCookie(selection);
 }
 

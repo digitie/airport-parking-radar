@@ -8,6 +8,7 @@ type RouteContext = {
 };
 
 const BACKEND_INTERNAL_URL = (process.env.BACKEND_INTERNAL_URL ?? "http://localhost:8000").replace(/\/$/, "");
+const BACKEND_PROXY_TIMEOUT_MS = Math.max(1_000, Number(process.env.BACKEND_PROXY_TIMEOUT_MS ?? 10_000) || 10_000);
 const FORWARDED_REQUEST_HEADERS = new Set(["accept", "content-type"]);
 const FORWARDED_RESPONSE_HEADERS = new Set([
   "cache-control",
@@ -87,6 +88,16 @@ function buildResponseHeaders(upstreamResponse: Response): Headers {
   return headers;
 }
 
+function buildProxyErrorResponse(status: 502 | 504, detail: string): Response {
+  return Response.json(
+    { detail, code: status === 504 ? "backend_timeout" : "backend_unavailable" },
+    {
+      status,
+      headers: { "cache-control": "no-store, max-age=0, must-revalidate" },
+    }
+  );
+}
+
 async function proxyToBackend(request: NextRequest, context: RouteContext): Promise<Response> {
   const params = await context.params;
   const backendPath = (params.path ?? []).join("/");
@@ -97,19 +108,32 @@ async function proxyToBackend(request: NextRequest, context: RouteContext): Prom
   }
 
   const targetUrl = `${BACKEND_INTERNAL_URL}/${backendPath}${request.nextUrl.search}`;
-  const upstreamResponse = await fetch(targetUrl, {
-    method,
-    headers: buildForwardHeaders(request),
-    body: method === "GET" || method === "HEAD" ? undefined : await request.arrayBuffer(),
-    cache: "no-store",
-    redirect: "manual",
-  });
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), BACKEND_PROXY_TIMEOUT_MS);
 
-  return new Response(upstreamResponse.body, {
-    status: upstreamResponse.status,
-    statusText: upstreamResponse.statusText,
-    headers: buildResponseHeaders(upstreamResponse),
-  });
+  try {
+    const upstreamResponse = await fetch(targetUrl, {
+      method,
+      headers: buildForwardHeaders(request),
+      body: method === "GET" || method === "HEAD" ? undefined : await request.arrayBuffer(),
+      cache: "no-store",
+      redirect: "manual",
+      signal: controller.signal,
+    });
+
+    return new Response(upstreamResponse.body, {
+      status: upstreamResponse.status,
+      statusText: upstreamResponse.statusText,
+      headers: buildResponseHeaders(upstreamResponse),
+    });
+  } catch (caughtError) {
+    if (caughtError instanceof DOMException && caughtError.name === "AbortError") {
+      return buildProxyErrorResponse(504, "백엔드 응답 시간이 초과되었습니다. 잠시 후 다시 시도해 주세요.");
+    }
+    return buildProxyErrorResponse(502, "백엔드에 연결하지 못했습니다. 잠시 후 다시 시도해 주세요.");
+  } finally {
+    clearTimeout(timeoutId);
+  }
 }
 
 export async function GET(request: NextRequest, context: RouteContext): Promise<Response> {

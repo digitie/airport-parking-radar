@@ -100,7 +100,7 @@ function withTimeout<T>(promise: Promise<T>, timeoutMs: number, buildFallback: (
 }
 
 function useViewportMode() {
-  const [isMobile, setIsMobile] = useState(false);
+  const [isMobile, setIsMobile] = useState<boolean | null>(null);
 
   useEffect(() => {
     function syncViewport() {
@@ -391,8 +391,13 @@ export function DashboardApp({
   const selectedParkingLot = selectedAirportLots.find((parkingLot) => parkingLot.id === selectedParkingLotId) ?? null;
 
   const scopeItems = useMemo(
-    () => currentItems.filter((item) => selectedParkingLotId === null || item.parking_lot_id === selectedParkingLotId),
-    [currentItems, selectedParkingLotId]
+    () =>
+      currentItems.filter(
+        (item) =>
+          item.airport_code === selectedAirportCode &&
+          (selectedParkingLotId === null || item.parking_lot_id === selectedParkingLotId)
+      ),
+    [currentItems, selectedAirportCode, selectedParkingLotId]
   );
 
   async function handleManualCollect() {
@@ -484,7 +489,32 @@ export function DashboardApp({
       />
       {airports.length > 0 ? (
         <div className="page-shell footer-band">
-          {isMobile ? (
+          {isMobile === null ? (
+            <>
+              <div className="responsive-mobile">
+                <details className="mobile-disclosure">
+                  <summary>
+                    <span>주차요금 계산</span>
+                    <small>예상 이용 시간으로 요금 보기</small>
+                  </summary>
+                  <div className="mobile-disclosure-body">
+                    <FeeCalculator
+                      airports={airports}
+                      initialAirportCode={selectedAirportCode || airports[0].code}
+                      onCalculate={api.calculateFee}
+                    />
+                  </div>
+                </details>
+              </div>
+              <div className="responsive-desktop">
+                <FeeCalculator
+                  airports={airports}
+                  initialAirportCode={selectedAirportCode || airports[0].code}
+                  onCalculate={api.calculateFee}
+                />
+              </div>
+            </>
+          ) : isMobile ? (
             <details className="mobile-disclosure">
               <summary>
                 <span>주차요금 계산</span>

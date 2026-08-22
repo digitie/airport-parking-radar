@@ -21,6 +21,14 @@ function formatBytes(sizeBytes: number): string {
   return `${(sizeBytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
+function formatBackupTimestamp(value: string): string {
+  return new Intl.DateTimeFormat("ko-KR", {
+    dateStyle: "short",
+    timeStyle: "short",
+    timeZone: "Asia/Seoul",
+  }).format(new Date(value));
+}
+
 export function BackupPanel({ listBackups, createBackup, downloadBackup, restoreBackup }: BackupPanelProps) {
   const [open, setOpen] = useState(false);
   const [items, setItems] = useState<BackupFile[]>([]);
@@ -71,7 +79,7 @@ export function BackupPanel({ listBackups, createBackup, downloadBackup, restore
       anchor.href = url;
       anchor.download = filename;
       anchor.click();
-      URL.revokeObjectURL(url);
+      window.setTimeout(() => URL.revokeObjectURL(url), 1_000);
       setMessage(`다운로드를 시작했습니다: ${filename}`);
     } catch (caughtError) {
       setError(caughtError instanceof Error ? caughtError.message : "백업을 다운로드하지 못했습니다.");
@@ -118,10 +126,14 @@ export function BackupPanel({ listBackups, createBackup, downloadBackup, restore
         <span aria-hidden="true">{open ? "−" : "+"}</span>
       </button>
 
+      <p className="backup-panel-warning" role="note">
+        별도 인증 없이 제공되는 운영 도구이며 데이터 덮어쓰기가 가능합니다. 외부 공개 금지 · 신뢰된 네트워크에서만 사용하세요.
+      </p>
+
       {open ? (
         <div className="backup-panel-body">
           <p className="backup-panel-note">
-            별도 인증 없이 제공되는 운영 도구입니다. 외부에 공개하지 않는 네트워크에서만 사용하세요.
+            복원은 현재 PostgreSQL 데이터를 덮어쓰며, 서버가 자동 백업을 먼저 만든 뒤 진행합니다.
           </p>
           <div className="backup-panel-actions">
             <button type="button" className="button" onClick={() => void handleCreate()} disabled={busy}>
@@ -140,7 +152,7 @@ export function BackupPanel({ listBackups, createBackup, downloadBackup, restore
               목록 새로고침
             </button>
           </div>
-          {message ? <p className="backup-panel-message">{message}</p> : null}
+          {message ? <p className="backup-panel-message" aria-live="polite">{message}</p> : null}
           {error ? <p className="backup-panel-error" role="alert">{error}</p> : null}
           {items.length > 0 ? (
             <ul className="backup-list">
@@ -149,7 +161,7 @@ export function BackupPanel({ listBackups, createBackup, downloadBackup, restore
                   <span>
                     <strong>{item.filename}</strong>
                     <small>
-                      {formatBytes(item.size_bytes)} · {new Date(item.created_at).toLocaleString("ko-KR")}
+                      {formatBytes(item.size_bytes)} · {formatBackupTimestamp(item.created_at)} KST
                     </small>
                   </span>
                   <button type="button" className="text-button" onClick={() => void handleDownload(item.filename)} disabled={busy}>

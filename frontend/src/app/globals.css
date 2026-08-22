@@ -118,11 +118,15 @@ select {
 .lot-card,
 .spotlight,
 .control-band {
-  backdrop-filter: blur(20px);
   background: var(--surface);
   border: 1px solid var(--line);
   border-radius: var(--radius);
   box-shadow: var(--shadow);
+}
+
+.spotlight,
+.control-band {
+  backdrop-filter: blur(12px);
 }
 
 .metric-card {
@@ -184,6 +188,18 @@ select {
   color: white;
   font-weight: 700;
   cursor: pointer;
+}
+
+.button:not(:disabled):hover,
+.text-button:not(:disabled):hover,
+.backup-panel-trigger:hover {
+  filter: brightness(0.96);
+}
+
+.button:not(:disabled):active,
+.text-button:not(:disabled):active,
+.backup-panel-trigger:active {
+  transform: translateY(1px);
 }
 
 .button:disabled {
@@ -914,6 +930,11 @@ select {
   cursor: pointer;
 }
 
+.daily-flight-marker:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 4px;
+}
+
 .daily-flight-marker.active .flight-marker-line {
   stroke-width: 3;
   stroke-dasharray: 0;
@@ -1395,6 +1416,26 @@ select {
   display: grid;
   gap: 12px;
   margin-top: 10px;
+}
+
+/* The first client render does not know the viewport yet. CSS owns the initial
+   variant so mobile users never see a desktop-only branch flash during hydration. */
+.responsive-mobile {
+  display: none;
+}
+
+.responsive-desktop {
+  display: contents;
+}
+
+@media (max-width: 860px) {
+  .responsive-mobile {
+    display: contents;
+  }
+
+  .responsive-desktop {
+    display: none;
+  }
 }
 
 @media (max-width: 980px) {
@@ -1918,6 +1959,14 @@ select {
 .backup-list small {
   color: var(--muted);
   font-size: 0.78rem;
+}
+
+.backup-panel-warning {
+  margin: 0;
+  padding: 0 var(--space-5) var(--space-3);
+  color: var(--red);
+  font-size: 0.8rem;
+  font-weight: 700;
 }
 
 .backup-panel-body {

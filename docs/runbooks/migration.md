@@ -10,7 +10,7 @@
 ## 데이터 경로 선택
 
 1. 가장 정확한 경로: 운영자가 13번 SQLite 파일의 authorized copy 또는 PostgreSQL dump를 14번의 보호된 경로로 제공하고 `scripts/migrate_sqlite_to_postgres.py` 또는 `pg_restore`를 실행한다. 이 경로는 raw response, collection run, fee rule, analytics cache까지 보존한다.
-2. 현재 SSH 권한에서 가능한 fallback: `scripts/migrate_http_history.py`가 13번의 `/airports`와 parking history API를 읽어 공항·주차장·관측 시계열을 PostgreSQL에 upsert한다. 이 경로는 raw API body와 collection run ID를 복원할 수 없으므로 migration source로 명시한다.
+2. 현재 SSH 권한에서 가능한 fallback: `scripts/migrate_http_history.py`가 13번 프론트 proxy의 `/api/backend/airports`와 parking history API를 읽어 공항·주차장·관측 시계열을 PostgreSQL에 upsert한다. source lot ID는 공항 코드와 함께 다루며, provider slug와 이름이 다른 경우 기존 lot을 재사용한다. 이 경로는 raw API body와 collection run ID를 복원할 수 없으므로 migration source로 명시한다.
 
 ## 단계
 
@@ -39,35 +39,52 @@ docker compose --project-name parking-radar --env-file .env.server14 run --rm --
 ```bash
 docker compose --project-name parking-radar --env-file .env.server14 run --rm --no-deps \
   backend python /app/scripts/migrate_http_history.py \
-  --source-base-url http://192.168.1.13:8000 \
+  --source-base-url http://192.168.1.13:3000/api/backend \
   --days 7
 ```
 
-프론트 proxy만 접근 가능하면 `http://192.168.1.13:3000/api/backend`를 사용한다. 출력의 `failures=0`, imported count, source lot 수를 기록한다.
+프론트 proxy만 접근 가능하면 `http://192.168.1.13:3000/api/backend`를 사용한다. 출력의 `failures=0`, imported count, source lot 수를 기록한다. 하나라도 history 요청이 실패하면 importer는 commit하지 않고 종료한다.
 
 ### 4. final delta와 5분 cutover
 
-cutover 시작 전에 13번 API에서 `/admin/collector-status`의 `latest_snapshot_observed_at`, `latest_snapshot_collected_at`, `last_run.id`를 기록한다. 그 다음 다음을 즉시 실행한다.
+cutover 시작 전에 13번 proxy API에서 `/admin/collector-status`의 `latest_snapshot_observed_at`, `latest_snapshot_collected_at`, `last_run.id`를 기록한다. 그 다음 14번에서 아래 순서를 즉시 실행한다. 13번은 계속 동작시키며 HTTP 읽기만 한다.
 
 ```bash
 date -Is
 docker compose --project-name parking-radar --env-file .env.server14 run --rm --no-deps \
   backend python /app/scripts/migrate_http_history.py \
-  --source-base-url http://192.168.1.13:8000 --days 1
+  --source-base-url http://192.168.1.13:3000/api/backend --days 1
+docker compose --project-name parking-radar --env-file .env.server14 run --rm --no-deps \
+  backend python /app/scripts/reconcile_parking_lots.py
+sed -i 's/^ENABLE_SCHEDULER=false$/ENABLE_SCHEDULER=true/' .env.server14
 docker compose --project-name parking-radar --env-file .env.server14 up -d backend frontend
 until curl -fsS http://127.0.0.1:14000/health >/dev/null; do sleep 2; done
 curl -fsS http://127.0.0.1:14000/admin/collector-status
 ```
 
-14번 backend는 기동 직후 collector를 한 번 실행한다. `date -Is`부터 14번의 `last_run.finished_at`까지 240초 이내인지 측정하고, 14번 latest observed/collected가 13번 cutover marker보다 늦거나 같은지 확인한다. 5분 기준을 넘거나 latest marker가 후퇴하면 14번 scheduler를 끄고 13번을 유지한 채 원인을 조사한다.
+14번 backend는 scheduler 활성화 직후 collector를 한 번 실행한다. scheduler는 collection duration을 더하지 않는 monotonic deadline으로 다음 tick을 예약한다. `date -Is`부터 14번의 `last_run.finished_at`까지 240초 이내인지 측정하고, 14번 latest observed/collected가 13번 cutover marker보다 늦거나 같은지 확인한다. 5분 기준을 넘거나 latest marker가 후퇴하면 14번 scheduler를 끄고 13번을 유지한 채 원인을 조사한다.
 
 HTTP fallback의 경우 13번은 계속 실행 중이므로 source update가 중단되지 않는다. 14번이 live 수집을 시작한 뒤 두 시스템의 latest marker를 5분 동안 1분 간격으로 비교해 공백이 없는 것을 확인한다. 확인이 끝나기 전에는 13번을 중지하지 않는다.
 
+전역 marker만으로 한 lot의 정체를 숨기지 않도록 per-lot verifier도 실행한다.
+
+```bash
+TMPDIR=/tmp uv run --project backend --extra dev python scripts/verify_cutover.py \
+  --source-base-url http://192.168.1.13:3000/api/backend \
+  --target-base-url http://192.168.1.14:14000 \
+  --days 1 --max-age-seconds 360
+```
+
+이 명령은 source lot 수, target lot identity 중복, 각 lot의 latest observed high-watermark,
+target scheduler/last successful run/freshness를 함께 검사한다. `failure_count=0`이어야 한다.
+
 ### 5. 검증·보존
 
-외부 운영 주소는 웹 `https://pr.digitie.mywire.org`, API
-`https://pr-api.digitie.mywire.org`이다. 웹은 same-origin `/api/backend` proxy를
-사용하고, API 도메인은 운영 smoke와 직접 API 확인에 사용한다.
+외부 reverse proxy가 웹 `https://pr.digitie.mywire.org`를 14번 `14001`로, API
+`https://pr-api.digitie.mywire.org`를 14번 `14000`으로 전달해야 한다. 웹은 same-origin
+`/api/backend` proxy를 사용하고, API 도메인은 운영 smoke와 직접 API 확인에 사용한다.
+443 reverse proxy가 별도 호스트에서 실행된다면 14번 Compose만으로 DNS/게이트웨이 라우팅은
+바뀌지 않으므로 live E2E 전에 web title과 API health 응답을 각각 확인한다.
 
 ```bash
 curl -fsS http://192.168.1.14:14000/health

@@ -379,11 +379,22 @@ export function DailyFlightOverlayChart({
                 {flightMarkers.map((marker) => (
                   <g
                     key={marker.key}
+                    aria-label={marker.label}
                     className={`daily-flight-marker daily-flight-marker-${marker.direction} ${
                       marker.key === activeFlightKey ? "active" : ""
                     }`}
                     data-testid="daily-flight-marker"
+                    role="button"
+                    tabIndex={0}
                     onClick={() => setSelectedFlightKey((current) => (current === marker.key ? null : marker.key))}
+                    onFocus={() => setHoveredFlightKey(marker.key)}
+                    onBlur={() => setHoveredFlightKey(null)}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter" || event.key === " ") {
+                        event.preventDefault();
+                        setSelectedFlightKey((current) => (current === marker.key ? null : marker.key));
+                      }
+                    }}
                     onMouseEnter={() => setHoveredFlightKey(marker.key)}
                     onMouseLeave={() => setHoveredFlightKey(null)}
                   >

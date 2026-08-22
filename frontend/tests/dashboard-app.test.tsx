@@ -334,7 +334,7 @@ describe("DashboardApp", () => {
       "IntersectionObserver",
       class MockIntersectionObserver implements IntersectionObserver {
         readonly root = null;
-        readonly rootMargin = "600px 0px";
+        readonly rootMargin = "120px 0px";
         readonly scrollMargin = "0px";
         readonly thresholds = [0];
 
