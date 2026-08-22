@@ -2,7 +2,7 @@
 
 This verifier is HTTP-only: it reads the running source proxy and target API,
 does not touch Docker on server13, and fails if any source lot is missing or
-if the target's latest observation falls behind the source high-watermark.
+if the target's latest observation exceeds the bounded source propagation lag.
 """
 
 from __future__ import annotations
@@ -22,6 +22,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--target-base-url", required=True)
     parser.add_argument("--days", type=int, default=1, choices=range(1, 8))
     parser.add_argument("--max-age-seconds", type=int, default=360, choices=range(60, 1801))
+    parser.add_argument("--max-source-lag-seconds", type=int, default=360, choices=range(60, 1801))
+    parser.add_argument("--max-run-gap-seconds", type=int, default=360, choices=range(60, 1801))
     return parser.parse_args()
 
 
@@ -120,9 +122,14 @@ async def verify(args: argparse.Namespace) -> int:
                 if source_latest is not None:
                     failures.append(f"{airport_code}/{lot_name}: target has no observation")
                 continue
-            if source_latest is not None and target_latest < source_latest:
+            if source_latest is not None:
+                source_lag_seconds = (source_latest - target_latest).total_seconds()
+            else:
+                source_lag_seconds = 0
+            if source_lag_seconds > args.max_source_lag_seconds:
                 failures.append(
-                    f"{airport_code}/{lot_name}: target={target_latest.isoformat()} < source={source_latest.isoformat()}"
+                    f"{airport_code}/{lot_name}: source leads target by {source_lag_seconds:.1f}s "
+                    f"> {args.max_source_lag_seconds}s"
                 )
             if (now - target_latest).total_seconds() > args.max_age_seconds:
                 failures.append(
@@ -145,6 +152,22 @@ async def verify(args: argparse.Namespace) -> int:
         last_run = target_status.get("last_run") or {}
         if last_run.get("status") != "success":
             failures.append(f"target last run status={last_run.get('status')!r}")
+        recent_runs = target_status.get("recent_runs") or []
+        successful_runs = []
+        for run in recent_runs:
+            if run.get("status") != "success":
+                failures.append(f"target recent run id={run.get('id')} status={run.get('status')!r}")
+                continue
+            started_at = parse_timestamp(run.get("started_at"))
+            if started_at is not None:
+                successful_runs.append((started_at, run.get("id")))
+        for newer, older in zip(successful_runs, successful_runs[1:]):
+            gap_seconds = (newer[0] - older[0]).total_seconds()
+            if gap_seconds > args.max_run_gap_seconds:
+                failures.append(
+                    f"target successful run gap between ids {newer[1]} and {older[1]} is "
+                    f"{gap_seconds:.1f}s > {args.max_run_gap_seconds}s"
+                )
 
     result = {
         "source_lots": len(source_results),
@@ -153,6 +176,8 @@ async def verify(args: argparse.Namespace) -> int:
         "failures": failures[:20],
         "target_latest_observed_at": target_status.get("latest_snapshot_observed_at"),
         "target_last_run_id": last_run.get("id"),
+        "max_source_lag_seconds": args.max_source_lag_seconds,
+        "max_run_gap_seconds": args.max_run_gap_seconds,
     }
     print(json.dumps(result, ensure_ascii=False, sort_keys=True))
     return 1 if failures else 0

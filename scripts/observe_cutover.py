@@ -18,6 +18,8 @@ def parse_args() -> argparse.Namespace:
     # A 300-second scheduler has a short collection/HTTP propagation tail;
     # 360 seconds detects a missed tick without rejecting the normal boundary.
     parser.add_argument("--max-age-seconds", type=int, default=360, choices=range(60, 1801))
+    parser.add_argument("--max-source-lag-seconds", type=int, default=360, choices=range(60, 1801))
+    parser.add_argument("--max-run-gap-seconds", type=int, default=360, choices=range(60, 1801))
     parser.add_argument("--samples", type=int, default=6, choices=range(2, 21))
     parser.add_argument("--sample-interval-seconds", type=int, default=60, choices=range(5, 3601))
     return parser.parse_args()
@@ -29,6 +31,8 @@ async def observe(args: argparse.Namespace) -> int:
         target_base_url=args.target_base_url,
         days=args.days,
         max_age_seconds=args.max_age_seconds,
+        max_source_lag_seconds=args.max_source_lag_seconds,
+        max_run_gap_seconds=args.max_run_gap_seconds,
     )
     statuses: list[int] = []
     for sample_index in range(args.samples):
@@ -41,6 +45,8 @@ async def observe(args: argparse.Namespace) -> int:
         "sample_interval_seconds": args.sample_interval_seconds,
         "gate_duration_seconds": (args.samples - 1) * args.sample_interval_seconds,
         "failed_samples": sum(status != 0 for status in statuses),
+        "max_source_lag_seconds": args.max_source_lag_seconds,
+        "max_run_gap_seconds": args.max_run_gap_seconds,
     }
     print(json.dumps(result, ensure_ascii=False, sort_keys=True))
     return 1 if any(statuses) else 0

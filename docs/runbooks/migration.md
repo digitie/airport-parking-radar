@@ -77,8 +77,11 @@ TMPDIR=/tmp uv run --project backend --extra dev python scripts/verify_cutover.p
   --days 1 --max-age-seconds 360
 ```
 
-이 명령은 source lot 수, target lot identity 중복, 각 lot의 latest observed high-watermark,
-target scheduler/last successful run/freshness를 함께 검사한다. `failure_count=0`이어야 한다.
+이 명령은 source lot 수, target lot identity 중복, 각 lot의 latest observed와 bounded source
+전파 지연, target scheduler/recent successful run 간격/freshness를 함께 검사한다. 원본이
+먼저 새 관측을 노출하는 정상적인 전파 구간은 `--max-source-lag-seconds 360`까지 허용하며,
+그 이상 source가 앞서거나 target successful run 간격이 `--max-run-gap-seconds 360`을 넘으면
+실패한다. `failure_count=0`이어야 한다.
 
 단일 확인은 5분 연속성의 증거가 아니므로, cutover 승인 전에는 1분 간격 6회 반복 관찰을
 실행한다. 이는 0분부터 5분까지의 gate를 만들고 source/target 모두 HTTP read만 수행한다.
@@ -87,7 +90,8 @@ target scheduler/last successful run/freshness를 함께 검사한다. `failure_
 TMPDIR=/tmp uv run --project backend --extra dev python scripts/observe_cutover.py \
   --source-base-url http://192.168.1.13:3000/api/backend \
   --target-base-url http://192.168.1.14:14000 \
-  --days 1 --max-age-seconds 360 --samples 6 --sample-interval-seconds 60
+  --days 1 --max-age-seconds 360 --max-source-lag-seconds 360 \
+  --max-run-gap-seconds 360 --samples 6 --sample-interval-seconds 60
 ```
 
 14번 scheduler의 계약은 300초이며 `360`초는 수집/HTTP 전파에 허용하는 60초 tail이다.
