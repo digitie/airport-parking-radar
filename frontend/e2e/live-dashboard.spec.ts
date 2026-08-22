@@ -28,7 +28,7 @@ test.describe("live parking-radar dashboard", () => {
     await page.getByRole("button", { name: /백업 \/ 복원/ }).click();
     await expect(page.getByText(/별도 인증 없이 제공되는 운영 도구/)).toBeVisible();
     await expect(page.getByRole("button", { name: "새 백업 만들기" })).toBeVisible();
-    await expect(page.getByText(/저장된 백업이 없습니다|\.dump/)).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByText("저장된 백업이 없습니다.")).toBeVisible({ timeout: 20_000 });
   });
 
   for (const width of [320, 375, 414, 768]) {
