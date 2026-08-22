@@ -4,11 +4,15 @@ from datetime import datetime
 from typing import Any
 
 from sqlalchemy import JSON, Boolean, DateTime, Float, ForeignKey, Index, Integer, String, Text, UniqueConstraint
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 
 class Base(DeclarativeBase):
     pass
+
+
+JSON_TYPE = JSON().with_variant(JSONB, "postgresql")
 
 
 class Airport(Base):
@@ -65,7 +69,7 @@ class RawApiResponse(Base):
     )
     source: Mapped[str] = mapped_column(String(40), index=True)
     endpoint: Mapped[str] = mapped_column(String(255))
-    request_params_json: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
+    request_params_json: Mapped[dict[str, Any] | None] = mapped_column(JSON_TYPE, nullable=True)
     status_code: Mapped[int] = mapped_column(Integer)
     body_text: Mapped[str] = mapped_column(Text)
     received_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
@@ -96,7 +100,7 @@ class ParkingSnapshot(Base):
     available_spaces: Mapped[int] = mapped_column(Integer)
     congestion_label: Mapped[str | None] = mapped_column(String(40), nullable=True)
     congestion_ratio: Mapped[float | None] = mapped_column(Float, nullable=True)
-    raw_item_json: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
+    raw_item_json: Mapped[dict[str, Any] | None] = mapped_column(JSON_TYPE, nullable=True)
 
     parking_lot: Mapped[ParkingLot] = relationship(back_populates="snapshots")
 
@@ -127,7 +131,7 @@ class AnalyticsCache(Base):
     future_hours: Mapped[int] = mapped_column(Integer, default=0)
     generated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     source_observed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
-    payload_json: Mapped[Any] = mapped_column(JSON)
+    payload_json: Mapped[Any] = mapped_column(JSON_TYPE)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
 
 
@@ -155,4 +159,4 @@ class ParkingFeeRule(Base):
     unit_fee: Mapped[int] = mapped_column(Integer)
     daily_max_fee: Mapped[int] = mapped_column(Integer)
     source_updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
-    raw_item_json: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
+    raw_item_json: Mapped[dict[str, Any] | None] = mapped_column(JSON_TYPE, nullable=True)

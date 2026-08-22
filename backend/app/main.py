@@ -8,11 +8,13 @@ from contextlib import suppress
 from datetime import date, datetime, time, timedelta
 from zoneinfo import ZoneInfo
 
-from fastapi import Depends, FastAPI, HTTPException, Query, Request
+from fastapi import Depends, FastAPI, File, HTTPException, Query, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
+from sqlalchemy.orm import selectinload
 
 from app.core.config import Settings, get_settings
 from app.core.time_utils import now_utc, serialize_utc, to_seoul
@@ -20,9 +22,14 @@ from app.db.session import create_engine_and_session_factory, init_database
 from app.models import Airport, CollectionRun, ParkingFeeRule, ParkingLot, ParkingSnapshot, RawApiResponse
 from app.schemas import (
     AirportSummary,
+    BackupFile,
+    BackupListResponse,
+    BackupRestoreResponse,
     CollectionSummary,
     CollectionRunStatus,
     CollectorStatusResponse,
+    DashboardAnalyticsResponse,
+    DashboardBootstrapResponse,
     FeeCalculationRequest,
     FeeCalculationResponse,
     FlightStatusResponse,
@@ -70,6 +77,13 @@ from app.services.analytics_cache import (
     METRIC_WEEKDAY_HOUR,
     load_cached_analytics,
     refresh_default_analytics_cache,
+)
+from app.services.backup_restore import (
+    backup_path_for_download,
+    create_backup,
+    list_backups,
+    restore_backup,
+    save_uploaded_backup,
 )
 from app.services.collection import CollectionService
 from app.services.fee_calculator import calculate_total_fee
@@ -183,13 +197,13 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     @app.get("/airports", response_model=list[AirportSummary])
     async def airports(session: AsyncSession = Depends(get_db)) -> list[AirportSummary]:
-        result = await session.execute(select(Airport).order_by(Airport.code))
+        result = await session.execute(
+            select(Airport).options(selectinload(Airport.parking_lots)).order_by(Airport.code)
+        )
         airports = result.scalars().all()
         payload: list[AirportSummary] = []
         for airport in airports:
-            lots = await session.execute(
-                select(ParkingLot).where(ParkingLot.airport_id == airport.id).order_by(ParkingLot.name)
-            )
+            lots = sorted(airport.parking_lots, key=lambda parking_lot: parking_lot.name)
             payload.append(
                 AirportSummary(
                     code=airport.code,
@@ -204,7 +218,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                             category=lot.category,
                             is_active=lot.is_active,
                         )
-                        for lot in lots.scalars().all()
+                        for lot in lots
                     ],
                 )
             )
@@ -685,6 +699,126 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             ),
             last_run=last_run,
             recent_runs=recent_runs,
+        )
+
+    @app.get("/admin/backups", response_model=BackupListResponse)
+    async def admin_backups() -> BackupListResponse:
+        items = await list_backups(resolved_settings.backup_dir)
+        return BackupListResponse(
+            items=[BackupFile(filename=item.filename, size_bytes=item.size_bytes, created_at=item.created_at) for item in items]
+        )
+
+    @app.post("/admin/backups", response_model=BackupFile, status_code=201)
+    async def admin_create_backup() -> BackupFile:
+        try:
+            item = await create_backup(
+                resolved_settings.backup_dir,
+                resolved_settings.database_url,
+                resolved_settings.backup_retention_count,
+                resolved_settings.backup_command_timeout_seconds,
+            )
+        except (RuntimeError, ValueError) as exc:
+            raise HTTPException(status_code=503, detail=str(exc)) from exc
+        return BackupFile(filename=item.filename, size_bytes=item.size_bytes, created_at=item.created_at)
+
+    @app.get("/admin/backups/{filename}")
+    async def admin_download_backup(filename: str) -> FileResponse:
+        try:
+            path = backup_path_for_download(resolved_settings.backup_dir, filename)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        if not path.is_file():
+            raise HTTPException(status_code=404, detail="백업 파일을 찾지 못했습니다.")
+        return FileResponse(path, media_type="application/octet-stream", filename=filename)
+
+    @app.post("/admin/backups/restore", response_model=BackupRestoreResponse)
+    async def admin_restore_backup(file: UploadFile = File(...)) -> BackupRestoreResponse:
+        if not file.filename or not file.filename.lower().endswith(".dump"):
+            raise HTTPException(status_code=400, detail=".dump 형식의 PostgreSQL 백업만 복원할 수 있습니다.")
+        try:
+            await create_backup(
+                resolved_settings.backup_dir,
+                resolved_settings.database_url,
+                resolved_settings.backup_retention_count,
+                resolved_settings.backup_command_timeout_seconds,
+            )
+            uploaded = await save_uploaded_backup(file, resolved_settings.backup_dir)
+            restored = await restore_backup(
+                resolved_settings.backup_dir,
+                resolved_settings.database_url,
+                uploaded.filename,
+                resolved_settings.backup_command_timeout_seconds,
+            )
+        except FileNotFoundError as exc:
+            raise HTTPException(status_code=404, detail="업로드한 백업 파일을 찾지 못했습니다.") from exc
+        except (RuntimeError, ValueError) as exc:
+            raise HTTPException(status_code=503, detail=str(exc)) from exc
+        return BackupRestoreResponse(
+            status="restored",
+            backup=BackupFile(filename=restored.filename, size_bytes=restored.size_bytes, created_at=restored.created_at),
+        )
+
+    @app.get("/dashboard/bootstrap", response_model=DashboardBootstrapResponse)
+    async def dashboard_bootstrap(
+        airport_code: str | None = Query(default=None),
+        session: AsyncSession = Depends(get_db),
+        collection_service: CollectionService = Depends(get_collection_service),
+        holiday_service: HolidayService = Depends(get_holiday_service),
+    ) -> DashboardBootstrapResponse:
+        """Return the first-paint payload in one request instead of four N+1 calls."""
+
+        return DashboardBootstrapResponse(
+            airports=await airports(session),
+            current=await parking_current(airport_code, session),
+            collector=await admin_collector_status(session, collection_service),
+            holidays=await holiday_summary(None, None, holiday_service),
+        )
+
+    @app.get("/dashboard/analytics", response_model=DashboardAnalyticsResponse)
+    async def dashboard_analytics(
+        airport_code: str = Query(..., min_length=3, max_length=3),
+        parking_lot_id: int | None = Query(default=None),
+        session: AsyncSession = Depends(get_db),
+        holiday_service: HolidayService = Depends(get_holiday_service),
+    ) -> DashboardAnalyticsResponse:
+        """Return the database-backed analytics together; flight data stays isolated."""
+
+        return DashboardAnalyticsResponse(
+            threshold_events=await threshold_events(
+                airport_code,
+                parking_lot_id,
+                DEFAULT_THRESHOLD_EVENTS_DAYS,
+                DEFAULT_THRESHOLD_EVENTS_LIMIT,
+                session,
+            ),
+            threshold_insights=await threshold_insights(
+                airport_code,
+                parking_lot_id,
+                DEFAULT_THRESHOLD_INSIGHTS_DAYS,
+                DEFAULT_THRESHOLD_INSIGHTS_INTERVAL_MINUTES,
+                session,
+            ),
+            weekday_hour_patterns=await parking_by_weekday_hour(
+                airport_code,
+                parking_lot_id,
+                DEFAULT_WEEKDAY_HOUR_DAYS,
+                session,
+            ),
+            holiday_patterns=await holiday_patterns(
+                airport_code,
+                parking_lot_id,
+                8,
+                session,
+                holiday_service,
+            ),
+            time_series=await parking_time_series(
+                airport_code,
+                parking_lot_id,
+                DEFAULT_TIMESERIES_DAYS,
+                DEFAULT_TIMESERIES_INTERVAL_MINUTES,
+                DEFAULT_TIMESERIES_FUTURE_HOURS,
+                session,
+            ),
         )
 
     async def _load_snapshots(

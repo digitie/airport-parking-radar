@@ -14,7 +14,7 @@ class Settings(BaseSettings):
     )
 
     app_name: str = "parking-radar"
-    database_url: str = "sqlite+aiosqlite:///./data/app.sqlite3"
+    database_url: str = "postgresql+asyncpg://parking_radar:parking_radar@postgres:5432/parking_radar"
     app_timezone: str = "Asia/Seoul"
     enable_scheduler: bool = False
     seed_sample_data: bool = True
@@ -31,10 +31,13 @@ class Settings(BaseSettings):
     enable_fee_collection: bool = False
     airport_codes_csv: str = "CJJ,CJU,GMP,HIN,ICN,KUV,KWJ,MWX,PUS,RSU,TAE,USN,WJU,YNY"
     cors_origins_csv: str = "http://localhost:3000"
-    trusted_hosts_csv: str = "localhost,127.0.0.1,testserver"
+    trusted_hosts_csv: str = "localhost,127.0.0.1,testserver,backend"
     enable_api_docs: bool = True
     api_prefix: str = ""
     use_sample_client_when_no_key: bool = True
+    backup_dir: str = "/app/backups"
+    backup_retention_count: int = 14
+    backup_command_timeout_seconds: int = 120
 
     @property
     def supported_airport_codes(self) -> list[str]:

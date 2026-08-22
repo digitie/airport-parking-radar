@@ -132,6 +132,23 @@ def test_airports(client) -> None:
     assert any(lot["name"].startswith("P1") for lot in airports["PUS"]["parking_lots"])
 
 
+def test_dashboard_aggregate_endpoints(client) -> None:
+    bootstrap = client.get("/dashboard/bootstrap")
+    assert bootstrap.status_code == 200
+    bootstrap_payload = bootstrap.json()
+    assert bootstrap_payload["airports"]
+    assert bootstrap_payload["current"]["items"]
+    assert bootstrap_payload["collector"]["latest_snapshot_observed_at"]
+    assert "sentence" in bootstrap_payload["holidays"]
+
+    analytics = client.get("/dashboard/analytics", params={"airport_code": "GMP"})
+    assert analytics.status_code == 200
+    analytics_payload = analytics.json()
+    assert analytics_payload["time_series"]["items"]
+    assert analytics_payload["weekday_hour_patterns"]
+    assert "threshold_events" in analytics_payload
+
+
 def test_current_and_analytics(client) -> None:
     current = client.get("/parking/current", params={"airport_code": "GMP"})
     assert current.status_code == 200

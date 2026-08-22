@@ -282,3 +282,37 @@ class HealthResponse(BaseModel):
     status: str
     database: str
     seeded: bool
+
+
+class BackupFile(BaseModel):
+    filename: str
+    size_bytes: int
+    created_at: datetime
+
+
+class BackupListResponse(BaseModel):
+    items: list[BackupFile]
+
+
+class BackupRestoreResponse(BaseModel):
+    status: Literal["restored"]
+    backup: BackupFile
+
+
+class DashboardBootstrapResponse(BaseModel):
+    """The minimum payload required to paint the first dashboard view."""
+
+    airports: list[AirportSummary]
+    current: ParkingCurrentResponse
+    collector: CollectorStatusResponse
+    holidays: HolidaySummaryResponse
+
+
+class DashboardAnalyticsResponse(BaseModel):
+    """Cached, lazy-loaded analytics returned in one network round trip."""
+
+    threshold_events: list[ThresholdEvent]
+    threshold_insights: ThresholdInsightsResponse
+    weekday_hour_patterns: list[WeekdayHourlyPattern]
+    holiday_patterns: HolidayPatternResponse
+    time_series: ParkingTimeSeriesResponse

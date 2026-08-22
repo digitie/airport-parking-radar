@@ -11,13 +11,25 @@ from app.models import Base
 
 
 def create_engine_and_session_factory(database_url: str) -> tuple[AsyncEngine, async_sessionmaker[AsyncSession]]:
+    if database_url.startswith("postgres://"):
+        database_url = "postgresql+asyncpg://" + database_url.removeprefix("postgres://")
+    elif database_url.startswith("postgresql://"):
+        database_url = "postgresql+asyncpg://" + database_url.removeprefix("postgresql://")
+
     if database_url.startswith("sqlite"):
         sqlite_url = make_url(database_url)
         database_path = sqlite_url.database
         if database_path and database_path != ":memory:":
             Path(database_path).parent.mkdir(parents=True, exist_ok=True)
 
-    engine = create_async_engine(database_url, future=True)
+    engine_options: dict[str, object] = {
+        "future": True,
+        "pool_pre_ping": True,
+        "pool_recycle": 1800,
+    }
+    if database_url.startswith("postgresql"):
+        engine_options.update({"pool_size": 5, "max_overflow": 5})
+    engine = create_async_engine(database_url, **engine_options)
 
     if database_url.startswith("sqlite"):
         @event.listens_for(engine.sync_engine, "connect")
@@ -81,8 +93,9 @@ async def init_database(engine: AsyncEngine) -> None:
                 "ON raw_api_responses (collection_run_id)"
             )
         )
-        await connection.execute(text("PRAGMA analysis_limit=1000"))
-        await connection.execute(text("PRAGMA optimize"))
+        if connection.dialect.name == "sqlite":
+            await connection.execute(text("PRAGMA analysis_limit=1000"))
+            await connection.execute(text("PRAGMA optimize"))
 
 
 async def session_scope(
