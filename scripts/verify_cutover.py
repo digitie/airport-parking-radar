@@ -16,6 +16,8 @@ from typing import Any
 
 import httpx
 
+RUN_GAP_TIMESTAMP_EPSILON_SECONDS = 1.0
+
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
@@ -200,10 +202,11 @@ async def verify(args: argparse.Namespace) -> int:
                 successful_runs.append((started_at, run.get("id")))
         for newer, older in zip(successful_runs, successful_runs[1:]):
             gap_seconds = (newer[0] - older[0]).total_seconds()
-            if gap_seconds > args.max_run_gap_seconds:
+            if gap_seconds > args.max_run_gap_seconds + RUN_GAP_TIMESTAMP_EPSILON_SECONDS:
                 failures.append(
                     f"target successful run gap between ids {newer[1]} and {older[1]} is "
-                    f"{gap_seconds:.1f}s > {args.max_run_gap_seconds}s"
+                    f"{gap_seconds:.1f}s > {args.max_run_gap_seconds}s "
+                    f"(+{RUN_GAP_TIMESTAMP_EPSILON_SECONDS:.0f}s timestamp precision epsilon)"
                 )
 
     result = {
@@ -216,6 +219,7 @@ async def verify(args: argparse.Namespace) -> int:
         "max_age_seconds": args.max_age_seconds,
         "max_source_lag_seconds": args.max_source_lag_seconds,
         "max_run_gap_seconds": args.max_run_gap_seconds,
+        "run_gap_timestamp_epsilon_seconds": RUN_GAP_TIMESTAMP_EPSILON_SECONDS,
         "allowed_empty_source_lots": sorted(f"{code}/{legacy_id}" for code, legacy_id in allowed_empty_lots),
     }
     print(json.dumps(result, ensure_ascii=False, sort_keys=True))

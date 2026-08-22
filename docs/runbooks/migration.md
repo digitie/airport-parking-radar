@@ -5,7 +5,9 @@
 - 13번에는 Docker 명령을 실행하지 않는다. 기존 서비스와 DB volume은 변경하지 않고 HTTP API만 읽는다.
 - Docker Compose와 PostgreSQL은 14번에서만 실행한다.
 - 13번 수집기는 cutover 검증이 끝날 때까지 유지해 source of truth와 rollback 경로로 둔다.
-- 14번 scheduler는 `COLLECT_INTERVAL_SECONDS=300`으로 시작하며, 최초 수집은 scheduler 시작 직후 실행된다.
+- 14번 scheduler는 `COLLECT_INTERVAL_SECONDS=300` 계약으로 시작하며, 최초 수집은 scheduler 시작
+  직후 실행된다. `SCHEDULER_SAFETY_BUFFER_SECONDS=60`으로 실제 tick 시작 간격은 240초로
+  예약하여 upstream 응답 지연이 있어도 관측 commit 간격이 5분을 넘지 않게 한다.
 
 ## 데이터 경로 선택
 
@@ -99,7 +101,9 @@ TMPDIR=/tmp uv run --project backend --extra dev python scripts/observe_cutover.
 ```
 
 `AIRPORT/LEGACY_ID`는 source `/airports`와 target의 `legacy_source_lot_id`를 대조해 실제
-양쪽 무관측 lot에 대해서만 채운다. 14번 scheduler와 verifier의 계약은 모두 300초이며,
+양쪽 무관측 lot에 대해서만 채운다. 14번 scheduler의 계약은 300초이고 실제 tick 간격은
+240초 safety buffer로 운용하며, freshness/lag verifier의 한도는 300초이다. run 시작
+timestamp의 부동소수점/마이크로초 표현 차이만 1초 epsilon으로 허용한다.
 마지막 출력의 `failed_samples=0`과 각 verifier 출력의 `failure_count=0`을 journal에 기록한다.
 
 ### 5. 검증·보존

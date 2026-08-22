@@ -125,7 +125,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
         if resolved_settings.enable_scheduler:
             logger.info(
-                "scheduler enabled interval_seconds=%s client_mode=%s sources=%s airports=%s",
+                "scheduler enabled effective_interval_seconds=%s configured_interval_seconds=%s client_mode=%s sources=%s airports=%s",
+                resolved_settings.effective_collect_interval_seconds,
                 resolved_settings.collect_interval_seconds,
                 app.state.collection_service.client_mode,
                 ",".join(app.state.collection_service.enabled_sources),
@@ -715,6 +716,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         return CollectorStatusResponse(
             scheduler_enabled=resolved_settings.enable_scheduler,
             collect_interval_seconds=resolved_settings.collect_interval_seconds,
+            effective_collect_interval_seconds=resolved_settings.effective_collect_interval_seconds,
+            scheduler_safety_buffer_seconds=resolved_settings.scheduler_safety_buffer_seconds,
             manual_collect_min_interval_seconds=resolved_settings.manual_collect_min_interval_seconds,
             client_mode=service.client_mode,
             enabled_sources=service.enabled_sources,
@@ -991,7 +994,7 @@ async def _run_scheduler(app: FastAPI) -> None:
             except Exception:
                 await session.rollback()
                 logger.exception("scheduler tick failed")
-        next_deadline += settings.collect_interval_seconds
+        next_deadline += settings.effective_collect_interval_seconds
         delay = next_deadline - loop.time()
         if delay < 0:
             logger.warning(

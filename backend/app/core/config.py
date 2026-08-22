@@ -20,6 +20,7 @@ class Settings(BaseSettings):
     enable_scheduler: bool = False
     seed_sample_data: bool = True
     collect_interval_seconds: int = Field(default=300, gt=0)
+    scheduler_safety_buffer_seconds: int = Field(default=60, ge=0)
     manual_collect_min_interval_seconds: int = Field(default=300, ge=0)
     upstream_rate_limit_backoff_seconds: int = Field(default=3600, ge=0)
     api_timeout_seconds: int = Field(default=15, gt=0)
@@ -51,6 +52,10 @@ class Settings(BaseSettings):
     @property
     def trusted_hosts(self) -> list[str]:
         return [host.strip() for host in self.trusted_hosts_csv.split(",") if host.strip()]
+
+    @property
+    def effective_collect_interval_seconds(self) -> int:
+        return max(1, self.collect_interval_seconds - self.scheduler_safety_buffer_seconds)
 
 
 @lru_cache
