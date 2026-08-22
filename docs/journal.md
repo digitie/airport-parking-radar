@@ -30,5 +30,6 @@
   무인증 backup/restore는 사용자의 명시 요구라 유지하되 gateway/private network 보호를
   runbook에 남겼다.
 - Draft PR [#2](https://github.com/digitie/airport-parking-radar/pull/2)의 최신 head는
-  `146573d`이며 최종 local/remote 검증과 CI 확인 후 merge 단계다. 13번에는 Docker 명령을
+  `27e7b76`이며 workflow `32551777049`의 backend(PostgreSQL + `alembic check`), frontend,
+  live-e2e가 모두 green인 merge 단계다. 13번에는 Docker 명령을
   실행하지 않았다.

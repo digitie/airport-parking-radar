@@ -39,8 +39,10 @@
 
 - 원격 branch: `codex/parking-radar-postgres-migration`.
 - Draft PR: [#2](https://github.com/digitie/airport-parking-radar/pull/2).
-- 주요 원격 커밋: `2b33a26`, `6b7ac89`, `2a88c09`, `c5e5b03`, `8d8a45a`, `f367db9`, `4980485`.
-- workflow run `32547913806`의 backend, frontend, live-e2e job이 모두 통과했다.
+- 주요 원격 커밋: `2b33a26`, `6b7ac89`, `2a88c09`, `c5e5b03`, `8d8a45a`, `f367db9`, `4980485`,
+  `a690628`, `8f9af56`, `146573d`, `27e7b76`.
+- workflow run `32551777049`의 backend(PostgreSQL + `alembic check`), frontend, live-e2e job이
+  모두 통과했다.
 
 ### `T-014` — 인증 없는 내부망용 백업/복원 UI와 API
 
