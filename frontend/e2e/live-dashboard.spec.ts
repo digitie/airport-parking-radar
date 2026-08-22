@@ -10,6 +10,7 @@ test.describe("live parking-radar dashboard", () => {
     });
 
     const airportSelect = page.getByRole("combobox", { name: "공항 선택" });
+    await expect.poll(() => airportSelect.locator("option").count(), { timeout: 20_000 }).toBeGreaterThan(0);
     const airportOptions = await airportSelect.locator("option").allTextContents();
     expect(airportOptions.length).toBeGreaterThan(0);
     if (airportOptions.length > 1) {
