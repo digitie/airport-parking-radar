@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from functools import lru_cache
 
+from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -18,10 +19,10 @@ class Settings(BaseSettings):
     app_timezone: str = "Asia/Seoul"
     enable_scheduler: bool = False
     seed_sample_data: bool = True
-    collect_interval_seconds: int = 300
-    manual_collect_min_interval_seconds: int = 300
-    upstream_rate_limit_backoff_seconds: int = 3600
-    api_timeout_seconds: int = 15
+    collect_interval_seconds: int = Field(default=300, gt=0)
+    manual_collect_min_interval_seconds: int = Field(default=300, ge=0)
+    upstream_rate_limit_backoff_seconds: int = Field(default=3600, ge=0)
+    api_timeout_seconds: int = Field(default=15, gt=0)
     data_go_kr_service_key: str | None = None
     enable_flight_status_markers: bool = True
     flight_status_cache_seconds: int = 300

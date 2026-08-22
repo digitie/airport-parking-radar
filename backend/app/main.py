@@ -579,6 +579,16 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         if airport is None:
             raise HTTPException(status_code=404, detail="지원하지 않는 공항입니다.")
 
+        if payload.parking_lot_id is not None:
+            lot = await session.scalar(
+                select(ParkingLot).where(
+                    ParkingLot.id == payload.parking_lot_id,
+                    ParkingLot.airport_id == airport.id,
+                )
+            )
+            if lot is None:
+                raise HTTPException(status_code=404, detail="해당 공항의 주차장을 찾지 못했습니다.")
+
         query = select(ParkingFeeRule).where(
             ParkingFeeRule.airport_id == airport.id,
             ParkingFeeRule.vehicle_size == payload.vehicle_size,
@@ -588,7 +598,12 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 (ParkingFeeRule.parking_lot_id == payload.parking_lot_id) | (ParkingFeeRule.parking_lot_id.is_(None))
             )
 
-        rules = (await session.execute(query)).scalars().all()
+        fetched_rules = (await session.execute(query)).scalars().all()
+        # Generic rules are the fallback; a lot-specific rule must win
+        # deterministically when both rows exist.
+        rules = [rule for rule in fetched_rules if rule.parking_lot_id is None]
+        if payload.parking_lot_id is not None:
+            rules.extend(rule for rule in fetched_rules if rule.parking_lot_id == payload.parking_lot_id)
         if not rules:
             return FeeCalculationResponse(
                 supported=False,
@@ -732,27 +747,31 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         return FileResponse(path, media_type="application/octet-stream", filename=filename)
 
     @app.post("/admin/backups/restore", response_model=BackupRestoreResponse)
-    async def admin_restore_backup(file: UploadFile = File(...)) -> BackupRestoreResponse:
+    async def admin_restore_backup(
+        file: UploadFile = File(...),
+        service: CollectionService = Depends(get_collection_service),
+    ) -> BackupRestoreResponse:
         if not file.filename or not file.filename.lower().endswith(".dump"):
             raise HTTPException(status_code=400, detail=".dump 형식의 PostgreSQL 백업만 복원할 수 있습니다.")
-        try:
-            await create_backup(
-                resolved_settings.backup_dir,
-                resolved_settings.database_url,
-                resolved_settings.backup_retention_count,
-                resolved_settings.backup_command_timeout_seconds,
-            )
-            uploaded = await save_uploaded_backup(file, resolved_settings.backup_dir)
-            restored = await restore_backup(
-                resolved_settings.backup_dir,
-                resolved_settings.database_url,
-                uploaded.filename,
-                resolved_settings.backup_command_timeout_seconds,
-            )
-        except FileNotFoundError as exc:
-            raise HTTPException(status_code=404, detail="업로드한 백업 파일을 찾지 못했습니다.") from exc
-        except (RuntimeError, ValueError) as exc:
-            raise HTTPException(status_code=503, detail=str(exc)) from exc
+        async with service.operation_lock:
+            try:
+                await create_backup(
+                    resolved_settings.backup_dir,
+                    resolved_settings.database_url,
+                    resolved_settings.backup_retention_count,
+                    resolved_settings.backup_command_timeout_seconds,
+                )
+                uploaded = await save_uploaded_backup(file, resolved_settings.backup_dir)
+                restored = await restore_backup(
+                    resolved_settings.backup_dir,
+                    resolved_settings.database_url,
+                    uploaded.filename,
+                    resolved_settings.backup_command_timeout_seconds,
+                )
+            except FileNotFoundError as exc:
+                raise HTTPException(status_code=404, detail="업로드한 백업 파일을 찾지 못했습니다.") from exc
+            except (RuntimeError, ValueError) as exc:
+                raise HTTPException(status_code=503, detail=str(exc)) from exc
         return BackupRestoreResponse(
             status="restored",
             backup=BackupFile(filename=restored.filename, size_bytes=restored.size_bytes, created_at=restored.created_at),
@@ -929,6 +948,8 @@ async def _run_scheduler(app: FastAPI) -> None:
     service: CollectionService = app.state.collection_service
     settings: Settings = app.state.settings
 
+    loop = asyncio.get_running_loop()
+    next_deadline = loop.time()
     while True:
         async with session_factory() as session:
             try:
@@ -949,7 +970,16 @@ async def _run_scheduler(app: FastAPI) -> None:
             except Exception:
                 await session.rollback()
                 logger.exception("scheduler tick failed")
-        await asyncio.sleep(settings.collect_interval_seconds)
+        next_deadline += settings.collect_interval_seconds
+        delay = next_deadline - loop.time()
+        if delay < 0:
+            logger.warning(
+                "scheduler collection overran interval by %.1f seconds; starting next tick immediately",
+                -delay,
+            )
+            next_deadline = loop.time()
+            delay = 0
+        await asyncio.sleep(delay)
 
 
 async def _load_collection_run_statuses(

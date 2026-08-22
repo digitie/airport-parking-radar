@@ -8,6 +8,22 @@ on:
 jobs:
   backend:
     runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: postgresql+asyncpg://parking_radar:parking_radar@localhost:5432/parking_radar
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: parking_radar
+          POSTGRES_USER: parking_radar
+          POSTGRES_PASSWORD: parking_radar
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U parking_radar -d parking_radar"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
     defaults:
       run:
         working-directory: backend
@@ -18,6 +34,7 @@ jobs:
           python-version: "3.12"
       - uses: astral-sh/setup-uv@v6
       - run: uv sync --extra dev --locked
+      - run: uv run alembic -c alembic.ini upgrade head
       - run: uv run pytest tests -q
 
   frontend:

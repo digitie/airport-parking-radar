@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 
 class ParkingLotSummary(BaseModel):
@@ -217,9 +217,15 @@ class ThresholdInsightsResponse(BaseModel):
 class FeeCalculationRequest(BaseModel):
     airport_code: str
     parking_lot_id: int | None = None
-    vehicle_size: str = Field(default="small")
+    vehicle_size: Literal["small", "large"] = Field(default="small")
     entry_at: datetime
     exit_at: datetime
+
+    @model_validator(mode="after")
+    def validate_interval(self) -> "FeeCalculationRequest":
+        if self.exit_at <= self.entry_at:
+            raise ValueError("출차 시각은 입차 시각보다 늦어야 합니다.")
+        return self
 
 
 class FeeBreakdown(BaseModel):

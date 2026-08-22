@@ -3,7 +3,21 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import JSON, Boolean, DateTime, Float, ForeignKey, Index, Integer, String, Text, UniqueConstraint
+from sqlalchemy import (
+    JSON,
+    Boolean,
+    CheckConstraint,
+    DateTime,
+    Float,
+    ForeignKey,
+    ForeignKeyConstraint,
+    Index,
+    Integer,
+    String,
+    Text,
+    UniqueConstraint,
+    text,
+)
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
@@ -31,7 +45,10 @@ class Airport(Base):
 
 class ParkingLot(Base):
     __tablename__ = "parking_lots"
-    __table_args__ = (UniqueConstraint("airport_id", "source_lot_id", name="uq_parking_lot_source"),)
+    __table_args__ = (
+        UniqueConstraint("airport_id", "source_lot_id", name="uq_parking_lot_source"),
+        UniqueConstraint("id", "airport_id", name="uq_parking_lot_id_airport"),
+    )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     airport_id: Mapped[int] = mapped_column(ForeignKey("airports.id", ondelete="CASCADE"), index=True)
@@ -81,6 +98,24 @@ class ParkingSnapshot(Base):
     __tablename__ = "parking_snapshots"
     __table_args__ = (
         UniqueConstraint("parking_lot_id", "observed_at", "source", name="uq_parking_snapshot"),
+        ForeignKeyConstraint(
+            ["parking_lot_id", "airport_id"],
+            ["parking_lots.id", "parking_lots.airport_id"],
+            ondelete="CASCADE",
+            name="fk_snapshot_lot_airport",
+        ),
+        CheckConstraint(
+            "occupied_spaces >= 0 AND total_spaces >= 0 AND available_spaces >= 0",
+            name="ck_snapshot_nonnegative_spaces",
+        ),
+        CheckConstraint(
+            "occupied_spaces <= total_spaces AND available_spaces <= total_spaces",
+            name="ck_snapshot_spaces_within_capacity",
+        ),
+        CheckConstraint(
+            "congestion_ratio IS NULL OR (congestion_ratio >= 0 AND congestion_ratio <= 100)",
+            name="ck_snapshot_congestion_ratio",
+        ),
         Index("ix_parking_snapshots_airport_observed", "airport_id", "observed_at"),
         Index("ix_parking_snapshots_lot_observed", "parking_lot_id", "observed_at"),
         Index("ix_parking_snapshots_airport_lot_observed", "airport_id", "parking_lot_id", "observed_at"),
@@ -90,8 +125,8 @@ class ParkingSnapshot(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     collection_run_id: Mapped[int | None] = mapped_column(ForeignKey("collection_runs.id", ondelete="SET NULL"))
-    airport_id: Mapped[int] = mapped_column(ForeignKey("airports.id", ondelete="CASCADE"), index=True)
-    parking_lot_id: Mapped[int] = mapped_column(ForeignKey("parking_lots.id", ondelete="CASCADE"), index=True)
+    airport_id: Mapped[int] = mapped_column(Integer, index=True)
+    parking_lot_id: Mapped[int] = mapped_column(Integer, index=True)
     source: Mapped[str] = mapped_column(String(40))
     observed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
     collected_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
@@ -138,12 +173,37 @@ class AnalyticsCache(Base):
 class ParkingFeeRule(Base):
     __tablename__ = "parking_fee_rules"
     __table_args__ = (
-        UniqueConstraint(
+        ForeignKeyConstraint(
+            ["parking_lot_id", "airport_id"],
+            ["parking_lots.id", "parking_lots.airport_id"],
+            name="fk_fee_rule_lot_airport",
+        ),
+        Index(
+            "uq_parking_fee_rule_lot",
             "airport_id",
             "parking_lot_id",
             "vehicle_size",
             "day_type",
-            name="uq_parking_fee_rule",
+            unique=True,
+            postgresql_where=text("parking_lot_id IS NOT NULL"),
+            sqlite_where=text("parking_lot_id IS NOT NULL"),
+        ),
+        Index(
+            "uq_parking_fee_rule_generic",
+            "airport_id",
+            "vehicle_size",
+            "day_type",
+            unique=True,
+            postgresql_where=text("parking_lot_id IS NULL"),
+            sqlite_where=text("parking_lot_id IS NULL"),
+        ),
+        CheckConstraint(
+            "free_minutes >= 0 AND basic_minutes > 0 AND unit_minutes > 0",
+            name="ck_fee_rule_valid_intervals",
+        ),
+        CheckConstraint(
+            "basic_fee >= 0 AND unit_fee >= 0 AND daily_max_fee >= 0",
+            name="ck_fee_rule_nonnegative_fees",
         ),
     )
 

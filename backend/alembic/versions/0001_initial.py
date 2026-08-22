@@ -43,6 +43,7 @@ def upgrade() -> None:
         sa.Column("updated_at", UTC, nullable=False),
         sa.ForeignKeyConstraint(["airport_id"], ["airports.id"], ondelete="CASCADE"),
         sa.UniqueConstraint("airport_id", "source_lot_id", name="uq_parking_lot_source"),
+        sa.UniqueConstraint("id", "airport_id", name="uq_parking_lot_id_airport"),
     )
     op.create_index("ix_parking_lots_airport_id", "parking_lots", ["airport_id"], unique=False)
 
@@ -92,7 +93,25 @@ def upgrade() -> None:
         sa.ForeignKeyConstraint(["collection_run_id"], ["collection_runs.id"], ondelete="SET NULL"),
         sa.ForeignKeyConstraint(["airport_id"], ["airports.id"], ondelete="CASCADE"),
         sa.ForeignKeyConstraint(["parking_lot_id"], ["parking_lots.id"], ondelete="CASCADE"),
+        sa.ForeignKeyConstraint(
+            ["parking_lot_id", "airport_id"],
+            ["parking_lots.id", "parking_lots.airport_id"],
+            ondelete="CASCADE",
+            name="fk_snapshot_lot_airport",
+        ),
         sa.UniqueConstraint("parking_lot_id", "observed_at", "source", name="uq_parking_snapshot"),
+        sa.CheckConstraint(
+            "occupied_spaces >= 0 AND total_spaces >= 0 AND available_spaces >= 0",
+            name="ck_snapshot_nonnegative_spaces",
+        ),
+        sa.CheckConstraint(
+            "occupied_spaces <= total_spaces AND available_spaces <= total_spaces",
+            name="ck_snapshot_spaces_within_capacity",
+        ),
+        sa.CheckConstraint(
+            "congestion_ratio IS NULL OR (congestion_ratio >= 0 AND congestion_ratio <= 100)",
+            name="ck_snapshot_congestion_ratio",
+        ),
     )
     op.create_index("ix_parking_snapshots_collection_run_id", "parking_snapshots", ["collection_run_id"], unique=False)
     op.create_index("ix_parking_snapshots_airport_id", "parking_snapshots", ["airport_id"], unique=False)
@@ -143,9 +162,35 @@ def upgrade() -> None:
         sa.Column("raw_item_json", JSONB, nullable=True),
         sa.ForeignKeyConstraint(["airport_id"], ["airports.id"], ondelete="CASCADE"),
         sa.ForeignKeyConstraint(["parking_lot_id"], ["parking_lots.id"], ondelete="SET NULL"),
-        sa.UniqueConstraint("airport_id", "parking_lot_id", "vehicle_size", "day_type", name="uq_parking_fee_rule"),
+        sa.ForeignKeyConstraint(
+            ["parking_lot_id", "airport_id"],
+            ["parking_lots.id", "parking_lots.airport_id"],
+            name="fk_fee_rule_lot_airport",
+        ),
+        sa.CheckConstraint(
+            "free_minutes >= 0 AND basic_minutes > 0 AND unit_minutes > 0",
+            name="ck_fee_rule_valid_intervals",
+        ),
+        sa.CheckConstraint(
+            "basic_fee >= 0 AND unit_fee >= 0 AND daily_max_fee >= 0",
+            name="ck_fee_rule_nonnegative_fees",
+        ),
     )
     op.create_index("ix_parking_fee_rules_airport_id", "parking_fee_rules", ["airport_id"], unique=False)
+    op.create_index(
+        "uq_parking_fee_rule_lot",
+        "parking_fee_rules",
+        ["airport_id", "parking_lot_id", "vehicle_size", "day_type"],
+        unique=True,
+        postgresql_where=sa.text("parking_lot_id IS NOT NULL"),
+    )
+    op.create_index(
+        "uq_parking_fee_rule_generic",
+        "parking_fee_rules",
+        ["airport_id", "vehicle_size", "day_type"],
+        unique=True,
+        postgresql_where=sa.text("parking_lot_id IS NULL"),
+    )
 
 
 def downgrade() -> None:

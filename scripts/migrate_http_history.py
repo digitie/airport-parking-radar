@@ -51,10 +51,11 @@ async def fetch_json(client: httpx.AsyncClient, base_url: str, path: str, params
 async def fetch_lot_history(
     client: httpx.AsyncClient,
     base_url: str,
+    airport_code: str,
     lot: dict[str, Any],
     days: int,
     semaphore: asyncio.Semaphore,
-) -> tuple[dict[str, Any], list[dict[str, Any]]]:
+) -> tuple[str, dict[str, Any], list[dict[str, Any]]]:
     async with semaphore:
         payload = await fetch_json(
             client,
@@ -62,7 +63,7 @@ async def fetch_lot_history(
             "/parking/history",
             {"parking_lot_id": lot["id"], "days": days},
         )
-    return lot, payload.get("items", [])
+    return airport_code, lot, payload.get("items", [])
 
 
 async def upsert_reference_data(session: AsyncSession, airport_payload: dict[str, Any]) -> tuple[Airport, dict[int, ParkingLot]]:
@@ -93,6 +94,16 @@ async def upsert_reference_data(session: AsyncSession, airport_payload: dict[str
                 ParkingLot.source_lot_id == source_lot_id,
             )
         )
+        if lot is None:
+            # The live collector uses provider slugs while the legacy API uses
+            # numeric IDs. Match the existing named lot before creating a new
+            # row so a repeated migration cannot split its history.
+            lot = await session.scalar(
+                select(ParkingLot)
+                .where(ParkingLot.airport_id == airport.id, ParkingLot.name == lot_payload["name"])
+                .order_by(ParkingLot.id)
+                .limit(1)
+            )
         if lot is None:
             lot = ParkingLot(
                 airport_id=airport.id,
@@ -129,28 +140,44 @@ async def import_history(args: argparse.Namespace) -> int:
         semaphore = asyncio.Semaphore(args.concurrency)
         for airport in airports_payload:
             for lot in airport.get("parking_lots", []):
-                history_tasks.append(fetch_lot_history(client, base_url, lot, args.days, semaphore))
+                history_tasks.append(
+                    fetch_lot_history(
+                        client,
+                        base_url,
+                        airport["code"].upper(),
+                        lot,
+                        args.days,
+                        semaphore,
+                    )
+                )
         histories = await asyncio.gather(*history_tasks, return_exceptions=True)
 
-    histories_by_source_lot: dict[int, list[dict[str, Any]]] = {}
+    histories_by_source_lot: dict[tuple[str, int], list[dict[str, Any]]] = {}
     for result in histories:
         if isinstance(result, Exception):
             failures.append(str(result))
             continue
-        lot, items = result
-        histories_by_source_lot[int(lot["id"])] = items
+        airport_code, lot, items = result
+        histories_by_source_lot[(airport_code, int(lot["id"]))] = items
+
+    if failures:
+        await engine.dispose()
+        print(f"imported_snapshots=0 source_lots={len(histories_by_source_lot)} failures={len(failures)}")
+        for failure in failures[:10]:
+            print(f"migration_warning={failure}")
+        return 2
 
     async with session_factory() as session:
-        lots_by_source_lot: dict[int, tuple[int, int]] = {}
+        lots_by_source_lot: dict[tuple[str, int], tuple[int, int]] = {}
         for airport_payload in airports_payload:
             airport, lots = await upsert_reference_data(session, airport_payload)
             for source_lot_id, lot in lots.items():
-                lots_by_source_lot[source_lot_id] = (airport.id, lot.id)
+                lots_by_source_lot[(airport.code, source_lot_id)] = (airport.id, lot.id)
 
-        for source_lot_id, items in histories_by_source_lot.items():
-            reference = lots_by_source_lot.get(source_lot_id)
+        for (airport_code, source_lot_id), items in histories_by_source_lot.items():
+            reference = lots_by_source_lot.get((airport_code, source_lot_id))
             if reference is None:
-                failures.append(f"source parking lot {source_lot_id} was not found in /airports")
+                failures.append(f"source parking lot {airport_code}/{source_lot_id} was not found in /airports")
                 continue
             airport_id, parking_lot_id = reference
             rows = []
@@ -169,7 +196,12 @@ async def import_history(args: argparse.Namespace) -> int:
                         "available_spaces": int(item["available_spaces"]),
                         "congestion_label": None,
                         "congestion_ratio": None,
-                        "raw_item_json": {**item, "migration": "http", "source_lot_id": source_lot_id},
+                        "raw_item_json": {
+                            **item,
+                            "migration": "http",
+                            "source_airport_code": airport_code,
+                            "source_lot_id": source_lot_id,
+                        },
                     }
                 )
             if not rows:

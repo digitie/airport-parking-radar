@@ -147,6 +147,7 @@ async def restore_backup(
                 "--if-exists",
                 "--no-owner",
                 "--no-acl",
+                "--single-transaction",
                 "--exit-on-error",
                 "--dbname",
                 safe_database_url,

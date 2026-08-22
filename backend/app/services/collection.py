@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 from dataclasses import dataclass
@@ -29,6 +30,7 @@ INCHEON_PARKING_ENDPOINT = "http://apis.data.go.kr/B551177/StatusOfParking/getTr
 KAC_FEE_ENDPOINT = "http://openapi.airport.co.kr/service/rest/AirportParkingFee/parkingfee"
 INCHEON_FEE_ENDPOINT = "http://apis.data.go.kr/B551177/ParkingChargeInfo/getParkingChargeInformation"
 UPSTREAM_RATE_LIMIT_MARKER = "LIMITED NUMBER OF SERVICE REQUESTS EXCEEDS ERROR."
+SENSITIVE_REQUEST_KEYS = {"servicekey", "service_key", "apikey", "api_key", "token", "password"}
 
 logger = logging.getLogger(__name__)
 
@@ -305,6 +307,15 @@ def validate_source_response_body(source: str, body_text: str) -> None:
             raise ValueError(f"{source} API error {result_code}: {result_msg}")
 
 
+def redact_request_params(params: dict[str, Any]) -> dict[str, Any]:
+    """Keep request provenance without persisting reusable credentials."""
+
+    return {
+        key: "[REDACTED]" if key.lower() in SENSITIVE_REQUEST_KEYS else value
+        for key, value in params.items()
+    }
+
+
 def build_public_data_client(settings: Settings) -> PublicDataClient:
     if settings.data_go_kr_service_key:
         return LivePublicDataClient(settings)
@@ -335,6 +346,9 @@ class CollectionService:
     def __init__(self, settings: Settings, client: PublicDataClient | None = None) -> None:
         self.settings = settings
         self.client = client or build_public_data_client(settings)
+        # The deployment runs one backend process. Serialize scheduler/manual
+        # collection so a cooldown check cannot launch two upstream writes.
+        self.operation_lock = asyncio.Lock()
 
     @property
     def client_mode(self) -> str:
@@ -379,6 +393,10 @@ class CollectionService:
         )
 
     async def collect(self, session: AsyncSession, trigger: str = "manual") -> dict[str, Any]:
+        async with self.operation_lock:
+            return await self._collect_unlocked(session, trigger)
+
+    async def _collect_unlocked(self, session: AsyncSession, trigger: str = "manual") -> dict[str, Any]:
         rate_limit_state = await self.get_upstream_rate_limit_state(session)
         can_collect_incheon = self.settings.enable_incheon_collection or self.settings.enable_incheon_fee_collection
         if rate_limit_state.is_blocked and rate_limit_state.blocked_until is not None and not can_collect_incheon:
@@ -531,7 +549,7 @@ class CollectionService:
                 collection_run_id=run.id,
                 source=response.source,
                 endpoint=response.endpoint,
-                request_params_json=response.request_params,
+                request_params_json=redact_request_params(response.request_params),
                 status_code=response.status_code,
                 body_text=response.body_text,
                 received_at=now_utc(),
@@ -607,6 +625,16 @@ class CollectionService:
         lot = await session.scalar(
             select(ParkingLot).where(ParkingLot.airport_id == airport_id, ParkingLot.source_lot_id == source_lot_id)
         )
+        if lot is None:
+            # A source can expose a different identifier for the same named lot
+            # after an import. Reuse the imported reference row so the live
+            # collector does not create a second lot and split its history.
+            lot = await session.scalar(
+                select(ParkingLot)
+                .where(ParkingLot.airport_id == airport_id, ParkingLot.name == name)
+                .order_by(ParkingLot.id)
+                .limit(1)
+            )
         timestamp = now_utc()
         if lot is None:
             lot = ParkingLot(
