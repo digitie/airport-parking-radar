@@ -124,8 +124,8 @@ docker compose up -d frontend
 - ODROID 배포 후 모바일에서만 백엔드가 안 되는 것처럼 보이면 먼저 아래 헤더를 확인한다.
 
 ```bash
-curl -I https://pr.digitie.mywire.org/
-curl -fsS -D - -o /dev/null https://pr.digitie.mywire.org/api/backend/airports
+curl -I https://pr2.digitie.mywire.org/
+curl -fsS -D - -o /dev/null https://pr2.digitie.mywire.org/api/backend/airports
 ```
 
 정상 기준:

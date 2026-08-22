@@ -9,6 +9,7 @@
 - 새 운영 대상: `digitie@192.168.1.14`
 - 14번 공개 포트: API `14000`, web `14001`; live E2E 기준 URL:
   `https://pr.digitie.mywire.org`
+- 14번 외부 API URL: `https://pr-api.digitie.mywire.org`
 
 ## 다음 한 작업
 

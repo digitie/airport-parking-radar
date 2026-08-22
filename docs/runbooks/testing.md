@@ -224,6 +224,7 @@ E2E_BASE_URL=https://pr.digitie.mywire.org npm run test:e2e
 
 Playwright 결과 JSON은 `frontend/test-results/live-e2e.json`에 남긴다. 320/375/414/768px에서 page-level overflow가 1px 이하인지와 backup/restore 경고가 보이는지를 함께 확인한다.
 - `https://pr.digitie.mywire.org/`와 GET 방식의 `/api/backend/airports` 응답 헤더가 `Cache-Control: no-store, max-age=0, must-revalidate`인지 확인
+- `https://pr-api.digitie.mywire.org/health`가 200을 반환하는지 확인
 
 ## 192.168.1.14 배포 스모크 체크
 
@@ -233,6 +234,7 @@ Playwright 결과 JSON은 `frontend/test-results/live-e2e.json`에 남긴다. 32
 - `https://pr.digitie.mywire.org/` 응답
 - `http://192.168.1.14:14001/api/backend/health` 응답
 - `https://pr.digitie.mywire.org/api/backend/health` 응답
+- `https://pr-api.digitie.mywire.org/health` 응답
 - `http://192.168.1.14:14000/health` 응답
 - `http://192.168.1.14:14000/admin/collector-status`에서
   - `client_mode=live`

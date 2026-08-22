@@ -78,7 +78,8 @@ docker compose up -d
 ## 192.168.1.14 운영 배포
 
 14번에서만 Docker/PostgreSQL을 실행한다. 운영 공개 포트는 API `14000`, web `14001`이며
-외부 live E2E 기준 주소는 [https://pr.digitie.mywire.org/](https://pr.digitie.mywire.org/)다.
+외부 API 주소는 [https://pr-api.digitie.mywire.org](https://pr-api.digitie.mywire.org),
+live E2E 기준 웹 주소는 [https://pr.digitie.mywire.org/](https://pr.digitie.mywire.org/)다.
 13번에서는 Docker를 실행하거나 중지하지 않고, cutover 전까지 source API와 rollback
 기준으로 유지한다.
 
@@ -97,6 +98,7 @@ REMOTE_APP_DIR=/home/digitie/apps/parking-radar \
 ```bash
 curl -fsS http://192.168.1.14:14000/health
 curl -fsS http://192.168.1.14:14001/
+curl -fsS https://pr-api.digitie.mywire.org/health
 curl -fsS https://pr.digitie.mywire.org/api/backend/health
 ```
 
@@ -113,7 +115,7 @@ E2E_BASE_URL=https://pr.digitie.mywire.org npm run test:e2e
 배포 기준 정보는 루트의 [.env.odroid](</F:/dev/parking-radar/.env.odroid>)에 저장한다.
 
 - 대상 IP: `192.168.1.13`
-- 외부 주소: [https://pr.digitie.mywire.org/](https://pr.digitie.mywire.org/)
+- 기존 13번 외부 주소: [https://pr2.digitie.mywire.org/](https://pr2.digitie.mywire.org/)
 - 사용자: `digitie`
 - 앱 디렉터리: `/home/digitie/apps/parking-radar`
 
@@ -143,7 +145,9 @@ E2E_BASE_URL=https://pr.digitie.mywire.org npm run test:e2e
 
 운영 보안 기본값:
 
-- `CORS_ORIGINS_CSV`는 내부 웹 주소와 `https://pr.digitie.mywire.org`만 허용한다.
+- 14번 `CORS_ORIGINS_CSV`는 `https://pr.digitie.mywire.org`와
+  `https://pr-api.digitie.mywire.org`를 기준으로 한다. 기존 13번은
+  `https://pr2.digitie.mywire.org`를 사용한다.
 - `TRUSTED_HOSTS_CSV`는 운영 도메인/내부 호스트만 허용한다.
 - `ENABLE_API_DOCS=false`로 공개 API 문서를 닫는다.
 - `지금 수집`은 관리 토큰 없이 동작하며, 브라우저에 공공데이터 API 키를 요구하거나 노출하지 않는다.

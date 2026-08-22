@@ -263,13 +263,13 @@ row-level `collected_at`은 백엔드에 남아 있지만, 메인 UI에서는 �
 - Next.js 서버가 `/api/backend/*` 요청을 Docker 내부 백엔드 주소인 `BACKEND_INTERNAL_URL`로 프록시한다.
 - ODROID 기본값은 `BACKEND_INTERNAL_URL=http://backend:8000`이다.
 
-이 규칙은 내부 LAN 주소(`http://192.168.1.13:3000`)와 외부 주소(`https://pr.digitie.mywire.org/`)를 같은 빌드로 처리하고, 외부 HTTPS 페이지에서 HTTP API 포트를 직접 호출하는 문제를 피하기 위한 것이다.
+이 규칙은 기존 13번 내부 LAN 주소(`http://192.168.1.13:3000`)와 외부 주소(`https://pr2.digitie.mywire.org/`)를 같은 빌드로 처리하고, 외부 HTTPS 페이지에서 HTTP API 포트를 직접 호출하는 문제를 피하기 위한 것이다.
 
 ### 공개 서비스 보안
 
-- 외부 서비스 기준 주소는 `https://pr.digitie.mywire.org/`이다.
+- 기존 13번 외부 서비스 기준 주소는 `https://pr2.digitie.mywire.org/`이다.
 - 운영 백엔드는 `TRUSTED_HOSTS_CSV`로 허용 Host를 제한한다.
-- 운영 CORS는 `http://192.168.1.13:3000`, `https://pr.digitie.mywire.org`, `http://localhost:3000`만 허용한다.
+- 기존 13번 운영 CORS는 `http://192.168.1.13:3000`, `https://pr2.digitie.mywire.org`, `http://localhost:3000`만 허용한다.
 - 운영에서는 `ENABLE_API_DOCS=false`로 API 문서를 공개하지 않는다.
 - `POST /admin/collect`는 관리자 토큰 없이 실행된다.
 - 일반 조회와 자동 갱신은 서버에 저장된 `DATA_GO_KR_SERVICE_KEY`로 동작하며, 브라우저에 공공데이터 API 키를 요구하거나 노출하지 않는다.

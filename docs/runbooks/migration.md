@@ -65,6 +65,10 @@ HTTP fallback의 경우 13번은 계속 실행 중이므로 source update가 중
 
 ### 5. 검증·보존
 
+외부 운영 주소는 웹 `https://pr.digitie.mywire.org`, API
+`https://pr-api.digitie.mywire.org`이다. 웹은 same-origin `/api/backend` proxy를
+사용하고, API 도메인은 운영 smoke와 직접 API 확인에 사용한다.
+
 ```bash
 curl -fsS http://192.168.1.14:14000/health
 curl -fsS 'http://192.168.1.14:14000/dashboard/bootstrap' >/dev/null

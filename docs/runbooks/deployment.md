@@ -28,6 +28,7 @@ REMOTE_APP_DIR=/home/digitie/apps/parking-radar \
 - web: `14001` (`http://192.168.1.14:14001`)
 - API: `14000` (`http://192.168.1.14:14000`)
 - Docker 내부 backend: `http://backend:8000`
+- 외부 API: `https://pr-api.digitie.mywire.org`
 - 외부 live E2E: `https://pr.digitie.mywire.org`
 
 ## 로컬 개발 실행
@@ -127,8 +128,8 @@ DATA_GO_KR_SERVICE_KEY=...
 - `PUBLIC_API_PORT=18000`
 - `BACKEND_INTERNAL_URL=http://backend:8000`
 - `NEXT_PUBLIC_API_BASE_URL=` 비움
-- `CORS_ORIGINS_CSV=http://192.168.1.13:3000,https://pr.digitie.mywire.org,http://localhost:3000`
-- `TRUSTED_HOSTS_CSV=192.168.1.13,pr.digitie.mywire.org,localhost,127.0.0.1,testserver,backend`
+- `CORS_ORIGINS_CSV=http://192.168.1.13:3000,https://pr2.digitie.mywire.org,http://localhost:3000`
+- `TRUSTED_HOSTS_CSV=192.168.1.13,pr2.digitie.mywire.org,localhost,127.0.0.1,testserver,backend`
 - `ENABLE_API_DOCS=false`
 
 포트 메모:
@@ -136,7 +137,7 @@ DATA_GO_KR_SERVICE_KEY=...
 - 현재 ODROID에서는 `8000` 포트를 Portainer가 사용 중이다.
 - 따라서 `parking-radar` 백엔드는 `18000` 포트를 기본값으로 사용한다.
 - 프론트는 기본적으로 같은 origin의 `/api/backend`를 호출하고, Next.js 서버가 Docker 내부의 `BACKEND_INTERNAL_URL`로 프록시한다.
-- 외부 서비스 주소는 `https://pr.digitie.mywire.org/`를 기준으로 한다.
+- 기존 13번 외부 서비스 주소는 `https://pr2.digitie.mywire.org/`를 기준으로 한다.
 
 비밀번호는 저장하지 않으며, 배포 시에만 입력한다.
 
@@ -183,7 +184,7 @@ Windows 로컬 PowerShell 테스트만으로 ODROID에 배포하지 않는다. P
 - WSL에서 Next.js를 직접 실행할 때는 `BACKEND_INTERNAL_URL=http://localhost:8000`을 사용한다.
 - 명시적으로 내부/외부 API를 직접 호출해야 할 때만 `NEXT_PUBLIC_API_BASE_URL`을 채운다.
 
-이 방식은 LAN IP(`http://192.168.1.13:3000`)와 외부 HTTPS 도메인(`https://pr.digitie.mywire.org/`)을 같은 빌드로 처리하고, HTTPS 페이지가 별도 HTTP API 포트를 직접 호출하면서 생기는 mixed content/CORS 문제를 피하기 위한 것이다.
+이 방식은 기존 13번 LAN IP(`http://192.168.1.13:3000`)와 외부 HTTPS 도메인(`https://pr2.digitie.mywire.org/`)을 같은 빌드로 처리하고, HTTPS 페이지가 별도 HTTP API 포트를 직접 호출하면서 생기는 mixed content/CORS 문제를 피하기 위한 것이다.
 
 ## 공개 서비스 보안 기준
 
