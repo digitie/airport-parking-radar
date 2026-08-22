@@ -102,7 +102,7 @@ curl http://localhost:8000/admin/collector-status
 - 기존 `15000126` 계열 `FlightStatusList/getFlightStatusList`는 현재 보유 키로 `SERVICE ACCESS DENIED ERROR.`가 반환되어 live 호출에서 제외한다.
 
 관련 문서:
-- [data-sources.md](</F:/dev/parking-radar/docs/data-sources.md>)
+- [architecture/data-sources.md](</F:/dev/parking-radar/docs/architecture/data-sources.md>)
 
 ## 4. 공항별 세부 주차장 기준
 
@@ -158,7 +158,7 @@ curl http://localhost:8000/admin/collector-status
 row-level `collected_at`은 백엔드에 남아 있지만, 메인 UI에서는 직접 노출하지 않는다.
 
 관련 문서:
-- [time-and-collector.md](</F:/dev/parking-radar/docs/time-and-collector.md>)
+- [architecture/collection.md](</F:/dev/parking-radar/docs/architecture/collection.md>)
 
 ## 6. 수동 수집 버튼
 
@@ -295,7 +295,7 @@ row-level `collected_at`은 백엔드에 남아 있지만, 메인 UI에서는 �
 비밀번호는 저장하지 않는 것이 원칙이다.
 
 관련 문서:
-- [deployment.md](</F:/dev/parking-radar/docs/deployment.md>)
+- [runbooks/deployment.md](</F:/dev/parking-radar/docs/runbooks/deployment.md>)
 - [deploy/odroid/README.md](</F:/dev/parking-radar/deploy/odroid/README.md>)
 
 ## 10. 테스트 기준
@@ -319,7 +319,7 @@ row-level `collected_at`은 백엔드에 남아 있지만, 메인 UI에서는 �
 - 프론트: `31 passed`
 
 관련 문서:
-- [testing.md](</F:/dev/parking-radar/docs/testing.md>)
+- [runbooks/testing.md](</F:/dev/parking-radar/docs/runbooks/testing.md>)
 
 ## 11. 운영 중 자주 헷갈리는 점
 
@@ -331,7 +331,7 @@ row-level `collected_at`은 백엔드에 남아 있지만, 메인 UI에서는 �
 - SQLite 런타임 파일을 OneDrive bind mount에 직접 두면 간헐 오류가 날 수 있다.
 
 관련 문서:
-- [troubleshooting.md](</F:/dev/parking-radar/docs/troubleshooting.md>)
+- [runbooks/troubleshooting.md](</F:/dev/parking-radar/docs/runbooks/troubleshooting.md>)
 
 ## 12. 다음 변경 시 같이 갱신해야 하는 문서
 

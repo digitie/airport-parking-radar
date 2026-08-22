@@ -36,5 +36,4 @@ FastAPI + Next.js 앱이다. 주차 관측(`parking_snapshots`), 공항/주차�
 - PostgreSQL 모델·마이그레이션: `docs/architecture/data-model.md`, `docs/runbooks/migration.md`
 - 성능: `docs/architecture/performance.md`
 - 테스트·배포: `docs/runbooks/testing.md`, `docs/runbooks/deployment.md`
-- 운영 안전성: `docs/remote-command-safety.md`, `docs/runbooks/remote-command-safety.md`
-
+- 운영 안전성: `docs/runbooks/remote-command-safety.md`
