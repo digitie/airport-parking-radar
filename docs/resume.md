@@ -4,7 +4,7 @@
 
 - 기준일: 2026-08-22
 - 작업 브랜치: `codex/parking-radar-postgres-migration`
-- 현재 단계: 기준선 조사 및 구조 전환 설계
+- 현재 단계: 구현·데이터 이전·14번 배포·5분 연속성 검증 완료; PR #2 최종 merge 대기
 - 운영 원본: `digitie@192.168.1.13:/home/digitie/apps/parking-radar`
 - 새 운영 대상: `digitie@192.168.1.14`
 - 14번 공개 포트: API `14000`, web `14001`; live E2E 기준 URL:
@@ -13,17 +13,22 @@
 
 ## 다음 한 작업
 
-`docs/tasks.md`의 `T-001`을 구현하고 단계별 커밋으로 원격 Draft PR에 올린다.
+PR [#2](https://github.com/digitie/airport-parking-radar/pull/2)의 green CI와 exact live E2E
+증적을 확인한 뒤 squash merge한다.
 
 ## 확인된 사실
 
 - 13번의 현재 서비스는 프론트 `:3000`, 백엔드 `:8000`에서 응답한다.
-- 13번 `digitie` 계정은 Docker 그룹에 속하지 않아 Docker API를 읽을 수 없다.
-- 13번 최신 확인 시 수집기는 10분 주기이며 마지막 관측 시각은 운영 API에서 조회한다.
-- 14번은 Docker Compose v5와 Docker 접근 권한이 확인됐다.
+- 13번은 Docker를 조작하지 않고 `http://192.168.1.13:3000/api/backend` HTTP GET만 사용했다.
+- 13번 수집기는 10분 주기, 14번 scheduler는 300초 주기로 운영 중이며 14번 최근 run은
+  2026-08-22T03:15:02Z에 성공했다.
+- 14번 PostgreSQL은 Alembic `0002_integrity_and_freshness (head)`이고 14번은 Docker Compose로
+  API `14000`, web `14001`을 제공한다.
+- HTTP fallback migration은 snapshots 37,890건/lot 44개 상태로 운영되고, duplicate lot은 0개다.
 
 ## 남은 운영 확인
 
-- exact SQLite dump를 얻을 수 있는지와 13번 수집기를 언제 중지할지 운영 cutover 때 확정한다.
-- 14번의 실제 외부 API 키·도메인·포트·백업 보존 위치를 `.env`에 주입하고 값 자체는
-  문서나 커밋에 남기지 않는다.
+- exact SQLite dump는 사용하지 않았으므로 raw response와 기존 collection run ID 보존이 필요하면
+  별도 운영 export를 제공한다.
+- 백업/복원은 별도 app auth가 없으므로 `pr.digitie.mywire.org` gateway/private ACL의 외부
+  노출 제한을 유지한다.
