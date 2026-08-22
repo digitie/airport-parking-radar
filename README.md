@@ -35,10 +35,10 @@
 
 ## 기술 스택
 
-- 백엔드: FastAPI, SQLAlchemy 2, SQLite
+- 백엔드: FastAPI, SQLAlchemy 2, PostgreSQL 16, Alembic
 - 프론트엔드: Next.js App Router, React, TypeScript
 - 테스트: pytest, Vitest
-- 실행: Docker Compose
+- 실행: Docker Compose (PostgreSQL 포함)
 - 개발 환경: WSL2 + Docker
 - 운영 목표 환경: Ubuntu 24.04 on Odroid M1S
 
@@ -269,16 +269,17 @@ docker compose run --rm --no-deps frontend npm run test -- --run
 ## 문서
 
 - [docs/current-state.md](</F:/dev/parking-radar/docs/current-state.md>)
-- [docs/data-sources.md](</F:/dev/parking-radar/docs/data-sources.md>)
+- [docs/architecture/data-sources.md](</F:/dev/parking-radar/docs/architecture/data-sources.md>)
 - [AGENTS.md](</F:/dev/parking-radar/AGENTS.md>)
 - [deploy/odroid/README.md](</F:/dev/parking-radar/deploy/odroid/README.md>)
-- [docs/architecture.md](</F:/dev/parking-radar/docs/architecture.md>)
-- [docs/analytics.md](</F:/dev/parking-radar/docs/analytics.md>)
-- [docs/testing.md](</F:/dev/parking-radar/docs/testing.md>)
-- [docs/deployment.md](</F:/dev/parking-radar/docs/deployment.md>)
-- [docs/time-and-collector.md](</F:/dev/parking-radar/docs/time-and-collector.md>)
-- [docs/troubleshooting.md](</F:/dev/parking-radar/docs/troubleshooting.md>)
-- [docs/remote-command-safety.md](</F:/dev/parking-radar/docs/remote-command-safety.md>)
+- [docs/architecture/architecture.md](</F:/dev/parking-radar/docs/architecture/architecture.md>)
+- [docs/architecture/analytics.md](</F:/dev/parking-radar/docs/architecture/analytics.md>)
+- [docs/runbooks/testing.md](</F:/dev/parking-radar/docs/runbooks/testing.md>)
+- [docs/runbooks/deployment.md](</F:/dev/parking-radar/docs/runbooks/deployment.md>)
+- [docs/architecture/collection.md](</F:/dev/parking-radar/docs/architecture/collection.md>)
+- [docs/runbooks/troubleshooting.md](</F:/dev/parking-radar/docs/runbooks/troubleshooting.md>)
+- [docs/runbooks/remote-command-safety.md](</F:/dev/parking-radar/docs/runbooks/remote-command-safety.md>)
+- [docs/tasks.md](</F:/dev/parking-radar/docs/tasks.md>)
 
 ## WSL 테스트 기준
 
