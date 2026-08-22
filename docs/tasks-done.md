@@ -7,9 +7,12 @@
 ### `T-023` — 192.168.1.14 배포·데이터 이전·운영 검증
 
 - `192.168.1.14`에만 Docker Compose/PostgreSQL/backend/frontend를 배포했다.
-- 포트는 API `14000`, web `14001`이며, PostgreSQL은 loopback `5432`로 제한했다.
+- 포트는 API `14000`, web `14001`이며, PostgreSQL은 loopback `5432`로 제한했다. configured
+  collection interval은 `300s`, effective scheduler tick은 `240s`(`60s` safety buffer)다.
 - HTTP migration 결과: `imported_snapshots=36878`, `source_lots=53`, `failures=0`.
-- lot reconciliation 후 중복 lot `0`, 현재 PostgreSQL `parking_snapshots=37890`, distinct lot `44`.
+- delta import 후 현재 PostgreSQL `parking_snapshots=38946`, distinct snapshot lots `44`,
+  parking lots `53`, legacy IDs `53`, duplicate legacy IDs `0`이며 Alembic head는
+  `0003_legacy_source_identity`다.
 - 7회 × 50초(총 300초) strict cutover observation: 각 `failure_count=0`, 최종 `failed_samples=0`.
 - 13번에는 Docker 명령을 실행하지 않고 HTTP GET만 수행했다.
 
@@ -19,6 +22,7 @@
 - 14번 직접 origin `http://192.168.1.14:14001`에서도 5 passed.
 - `https://pr-api.digitie.mywire.org/health`, web same-origin `/api/backend/health`, 14번 API
   health가 모두 `{"status":"ok","database":"ready","seeded":true}`를 반환했다.
+- 외부 live E2E는 최종 수정 후 `5 passed (9.4s)`, 14번 직접 origin은 `5 passed (5.9s)`였다.
 - 320/375/414/768px overflow와 backup/restore controls를 브라우저에서 확인했다.
 
 ### `T-021` — 적대적 전문 리뷰 에이전트 2명
@@ -68,7 +72,8 @@
 ### `T-003` — 데이터 이전·5분 무손실 컷오버
 
 - 7일 HTTP prewarm과 1일 delta import를 모두 실패 시 rollback하는 방식으로 수행했다.
-- target scheduler는 `300s`, source는 read-only 유지 상태에서 5분 연속성 gate를 통과했다.
+- target scheduler는 configured `300s`와 effective `240s` safety-buffer tick으로, source는
+  read-only 유지 상태에서 strict 5분 연속성 gate를 통과했다.
 - source/target lot은 stable legacy ID로 대조하고, 양쪽 무관측 lot은 명시 allowlist 없이는
   통과하지 않는다. lot freshness, source lag, successful run gap 모두 `300s` 한도로 검사한다.
 

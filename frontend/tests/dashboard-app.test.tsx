@@ -147,6 +147,8 @@ function buildCollectorStatus(overrides: Partial<CollectorStatusResponse> = {}):
     last_run: null,
     recent_runs: [],
     ...overrides,
+    effective_collect_interval_seconds: overrides.effective_collect_interval_seconds ?? 240,
+    scheduler_safety_buffer_seconds: overrides.scheduler_safety_buffer_seconds ?? 60,
   };
 }
 

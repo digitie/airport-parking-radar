@@ -33,7 +33,8 @@
   parking-radar가 아닌 Home Assistant 응답을 보여 원본 검증에 사용하지 않았다.
 - HTTP fallback은 공항·주차장·관측 시계열을 보존했지만 raw response와 기존 collection run ID를
   복원하지 않는다. exact SQLite dump가 필요하면 운영자 권한으로 별도 파일을 제공해야 한다.
-- 13번의 현재 수집기는 10분 주기로 동작 중이다. 14번은 5분 기준으로 시작하되, 공공데이터
-  API rate limit과 실제 응답 시각은 `docs/architecture/collection.md`에 기록한다.
+- 13번의 현재 수집기는 10분 주기로 동작 중이다. 14번은 configured 5분 계약과 60초 safety
+  buffer(실제 tick 240초)로 운영하며, 공공데이터 API rate limit과 실제 응답 시각은
+  `docs/architecture/collection.md`에 기록한다.
 - 백업/복원 API에는 별도 인증이 없다. 인터넷에 직접 노출하지 않고 내부망 또는 외부
   게이트웨이에서 접근을 제한해야 한다.

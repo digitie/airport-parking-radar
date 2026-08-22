@@ -10,14 +10,16 @@
 - `kor-travel-map` 방식의 AI 작업 문서와 docs backlog 구조를 이식했다. `AGENTS.md`,
   `CLAUDE.md`, `SKILL.md`, `.claude`, `.codex`, `.agents` 경로를 포함한다.
 - PostgreSQL 16/Alembic clean upgrade와 14번 runtime을 확인했다. remote status는
-  Alembic `0002_integrity_and_freshness (head)`, API `14000`, web `14001`, scheduler `300s`다.
+  Alembic `0003_legacy_source_identity (head)`, API `14000`, web `14001`, configured scheduler
+  `300s`, effective scheduler `240s`, safety buffer `60s`다.
 - HTTP migration은 7일 prewarm `imported_snapshots=36878`, `source_lots=53`, `failures=0`으로
   완료했고, reconciliation 후 duplicate lot `0`을 확인했다. 2026-08-22 현재 DB query는
   `parking_snapshots=37890`, distinct lots `44`다.
-- 14번 target collector run은 2026-08-22T03:15:01Z 시작, 03:15:02Z 종료, success,
-  snapshot_count `44`였다. 6회 × 60초 HTTP-only cutover observation은 각 `failure_count=0`,
-  final `failed_samples=0`이었다. verifier는 source 전파 tail 360초와 successful run gap
-  360초를 검사한다.
+- 14번 target collector run은 최종 검증 시 id `36`, observed `2026-08-22T04:13:03Z`,
+  success, snapshot_count `44`였다. strict 7회 × 50초(총 300초) HTTP-only cutover
+  observation은 각 `failure_count=0`, final `failed_samples=0`이었다. verifier는 stable
+  legacy lot identity, empty-lot allowlist, freshness/source lag/run gap `300s`를 검사하며
+  run timestamp precision에만 `1s` epsilon을 둔다.
 - 로컬 WSL 검증은 backend `59 passed`, frontend `9 files / 43 tests passed`, TypeScript와
   production build 통과였다. GitHub Actions run `32547913806`에서도 backend, frontend,
   live-e2e가 모두 통과했다.
@@ -28,4 +30,5 @@
   무인증 backup/restore는 사용자의 명시 요구라 유지하되 gateway/private network 보호를
   runbook에 남겼다.
 - Draft PR [#2](https://github.com/digitie/airport-parking-radar/pull/2)의 최신 head는
-  `4980485`이며 CI/live E2E green 후 merge 단계다. 13번에는 Docker 명령을 실행하지 않았다.
+  `146573d`이며 최종 local/remote 검증과 CI 확인 후 merge 단계다. 13번에는 Docker 명령을
+  실행하지 않았다.
