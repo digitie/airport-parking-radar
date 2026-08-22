@@ -31,9 +31,9 @@ def upgrade() -> None:
         "occupied_spaces >= 0 AND total_spaces >= 0 AND available_spaces >= 0",
     )
     op.create_check_constraint(
-        "ck_snapshot_spaces_within_capacity",
+        "ck_snapshot_available_within_capacity",
         "parking_snapshots",
-        "occupied_spaces <= total_spaces AND available_spaces <= total_spaces",
+        "available_spaces <= total_spaces",
     )
     op.create_check_constraint(
         "ck_snapshot_congestion_ratio",
@@ -88,7 +88,7 @@ def downgrade() -> None:
     op.drop_constraint("fk_fee_rule_lot_airport", "parking_fee_rules", type_="foreignkey")
 
     op.drop_constraint("ck_snapshot_congestion_ratio", "parking_snapshots", type_="check")
-    op.drop_constraint("ck_snapshot_spaces_within_capacity", "parking_snapshots", type_="check")
+    op.drop_constraint("ck_snapshot_available_within_capacity", "parking_snapshots", type_="check")
     op.drop_constraint("ck_snapshot_nonnegative_spaces", "parking_snapshots", type_="check")
     op.drop_constraint("fk_snapshot_lot_airport", "parking_snapshots", type_="foreignkey")
     op.drop_constraint("uq_parking_lot_id_airport", "parking_lots", type_="unique")

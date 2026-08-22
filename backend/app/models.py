@@ -109,8 +109,8 @@ class ParkingSnapshot(Base):
             name="ck_snapshot_nonnegative_spaces",
         ),
         CheckConstraint(
-            "occupied_spaces <= total_spaces AND available_spaces <= total_spaces",
-            name="ck_snapshot_spaces_within_capacity",
+            "available_spaces <= total_spaces",
+            name="ck_snapshot_available_within_capacity",
         ),
         CheckConstraint(
             "congestion_ratio IS NULL OR (congestion_ratio >= 0 AND congestion_ratio <= 100)",
