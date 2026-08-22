@@ -2,6 +2,10 @@
 
 ## 핵심 테이블
 
+운영 DB는 PostgreSQL 16이며 모든 이벤트 시각은 timezone-aware UTC `TIMESTAMPTZ`로
+저장한다. Alembic의 `0001_initial`이 기준 스키마이고, 테스트와 legacy import에서만
+SQLite dialect를 허용한다.
+
 ### `airports`
 
 - 공항 기본 정보
@@ -52,9 +56,18 @@
 
 ## Query indexes
 
-Startup creates missing SQLite indexes with `CREATE INDEX IF NOT EXISTS` so existing ODROID databases are tuned without a manual migration.
+Alembic migration이 PostgreSQL 인덱스를 생성한다. SQLite 테스트에서는 같은 모델을
+사용하되 dialect 호환 인덱스 생성만 수행한다.
 
 - `parking_snapshots (airport_id, parking_lot_id, observed_at)` supports airport-scoped history and analytics scans.
 - `parking_snapshots (airport_id, parking_lot_id, observed_at DESC, id DESC)` supports latest snapshot ranking for `/parking/current`.
 - `parking_snapshots (collected_at)` supports collector status metadata.
 - `parking_snapshots (collection_run_id)` and `raw_api_responses (collection_run_id)` support recent collector run summaries.
+
+## Migration and backup contract
+
+- 기존 SQLite를 옮길 때는 `scripts/migrate_sqlite_to_postgres.py`를 14번에서 실행한다.
+- exact dump를 얻지 못하면 `scripts/migrate_http_history.py`로 관측 시계열을 먼저
+  가져오고, 원본 응답·collection run·fee rule 보존 한계를 `docs/journal.md`에 기록한다.
+- 백업은 PostgreSQL custom format(`pg_dump -Fc`)이며 복원 전 자동 pre-restore backup을
+  생성한다.

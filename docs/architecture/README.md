@@ -7,4 +7,4 @@
 - `data-sources.md` — 외부 데이터 원천
 - `performance.md` — 초기 로딩·쿼리·캐시 성능 기준
 - `backup-restore.md` — 백업·복원 계약과 운영 주의사항
-
+- `dependencies.md` — 확인한 최신 의존성 기준과 lock 파일

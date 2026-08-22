@@ -4,6 +4,16 @@
 
 `parking-radar`에서 보이는 시각이 왜 다른지, 어떤 시각이 무엇을 뜻하는지, 웹 UI의 강제 수집 버튼이 어떤 규칙으로 동작하는지 정리한다.
 
+운영 수집기는 `192.168.1.14`의 PostgreSQL-backed backend에서만 실행한다. `192.168.1.13`은
+cutover 동안 HTTP read-only source로 유지하며 Docker를 조작하지 않는다.
+
+## 주기와 중복 방지
+
+- 14번 운영 기본 주기: `COLLECT_INTERVAL_SECONDS=300` (5분)
+- 수동 수집 제한: `MANUAL_COLLECT_MIN_INTERVAL_SECONDS=300` (5분)
+- 외부 API가 같은 `observed_at`을 반복하면 unique key에 의해 새 snapshot이 생기지
+  않을 수 있다. 따라서 row 수와 함께 `observed_at`, `collected_at`, `last_run`을 확인한다.
+
 ## 시각 기준
 
 - 백엔드 저장 기준: UTC

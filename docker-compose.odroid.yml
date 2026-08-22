@@ -1,3 +1,5 @@
+# DEPRECATED historical 13번 definition. Do not run Docker on 192.168.1.13.
+# Current Docker/PostgreSQL deployment uses docker-compose.yml on 192.168.1.14.
 services:
   backend:
     build:

@@ -1,5 +1,7 @@
 # 테스트 전략
 
+> 현재 운영 대상은 `192.168.1.14`다. 아래의 13번/ODROID 경로는 기존 시스템의 관찰·rollback 기록이며, 13번에서는 Docker를 실행하거나 중지하지 않는다. 현재 배포는 [`migration.md`](migration.md)와 `scripts/deploy-server14.sh`를 사용한다.
+
 ## 목표
 
 - 백엔드와 프론트엔드 변경을 함께 검증한다.
@@ -14,8 +16,8 @@
 
 1. `WSL2` 셸에서 1차 테스트
 2. `WSL2 + Docker`에서 2차 테스트
-3. ODROID 배포
-4. ODROID 스모크 체크
+3. 192.168.1.14 배포
+4. 192.168.1.14 스모크 체크
 
 Windows PowerShell에서 실행한 테스트는 참고용으로만 본다. 배포 스크립트 실행, 압축, SSH 상태 확인처럼 Windows 도구가 필요한 작업에는 PowerShell을 사용할 수 있지만, 테스트 통과 기준으로 삼지 않는다.
 
@@ -35,7 +37,7 @@ npm run test -- --run
 npm run build
 ```
 
-1차 테스트는 빠른 피드백을 위한 단계다. 여기서 실패하면 Docker 테스트나 ODROID 배포로 넘어가지 않는다.
+1차 테스트는 빠른 피드백을 위한 단계다. 여기서 실패하면 Docker 테스트나 14번 배포로 넘어가지 않는다.
 
 ## 백엔드 테스트
 
@@ -70,6 +72,8 @@ npm run build
 ```bash
 docker compose run --rm --no-deps backend pytest -q
 ```
+
+이 명령은 로컬 Docker 또는 14번의 `parking-radar` Compose project에서만 실행한다. 13번에는 보내지 않는다.
 
 ## 프론트엔드 테스트
 
@@ -187,8 +191,10 @@ docker compose -f docker-compose.live.yml --project-name parking-radar-live down
 
 in-app browser 또는 브라우저에서 다음을 확인한다.
 
-- [http://localhost:3000](http://localhost:3000) 접속 가능
-- [http://localhost:8000/docs](http://localhost:8000/docs) 접속 가능
+- 로컬 확인은 [http://localhost:3000](http://localhost:3000)와
+  [http://localhost:8000/docs](http://localhost:8000/docs)를 사용한다.
+- 14번 운영 직접 확인은 웹 `http://192.168.1.14:14001`, API
+  `http://192.168.1.14:14000`을 사용한다.
 - KST 기준 시각 표시
 - 시계열 툴팁 표시
 - 시계열 X축 라벨이 겹치지 않고 6시간 단위로 표시되는지 확인
@@ -209,18 +215,26 @@ in-app browser 또는 브라우저에서 다음을 확인한다.
 - 요일별 임계 달성 시간 / 날짜별 임계 달성 시간 표시
 - `지금 수집` 성공 / 쿨다운 메시지 표시
 - 브라우저 콘솔 `error` / `warn` 없음
+- live E2E는 `frontend/e2e/live-dashboard.spec.ts`를 14번에서 실행한다.
+
+```bash
+cd frontend
+E2E_BASE_URL=https://pr.digitie.mywire.org npm run test:e2e
+```
+
+Playwright 결과 JSON은 `frontend/test-results/live-e2e.json`에 남긴다. 320/375/414/768px에서 page-level overflow가 1px 이하인지와 backup/restore 경고가 보이는지를 함께 확인한다.
 - `https://pr.digitie.mywire.org/`와 GET 방식의 `/api/backend/airports` 응답 헤더가 `Cache-Control: no-store, max-age=0, must-revalidate`인지 확인
 
-## ODROID 배포 스모크 체크
+## 192.168.1.14 배포 스모크 체크
 
 배포 후에는 최소한 아래를 확인한다.
 
-- `http://192.168.1.13:3000` 응답
+- `http://192.168.1.14:14001` 응답
 - `https://pr.digitie.mywire.org/` 응답
-- `http://192.168.1.13:3000/api/backend/health` 응답
+- `http://192.168.1.14:14001/api/backend/health` 응답
 - `https://pr.digitie.mywire.org/api/backend/health` 응답
-- `http://192.168.1.13:18000/health` 응답
-- `http://192.168.1.13:18000/admin/collector-status`에서
+- `http://192.168.1.14:14000/health` 응답
+- `http://192.168.1.14:14000/admin/collector-status`에서
   - `client_mode=live`
   - `scheduler_enabled=true`
   - `upstream_rate_limited=false`
@@ -245,7 +259,7 @@ in-app browser 또는 브라우저에서 다음을 확인한다.
 - Windows 로컬 테스트는 지양한다.
 - 1차 기준은 `WSL2` 셸에서 실행한 로컬 테스트 결과다.
 - 2차 최종 기준은 `WSL2` 안에서 실행한 Docker 테스트 결과다.
-- ODROID 배포는 1차/2차 테스트가 모두 통과한 뒤 진행한다.
+- 192.168.1.14 배포는 1차/2차 테스트가 모두 통과한 뒤 진행한다.
 - Windows PowerShell은 배포, 압축, 원격 실행 보조 용도로 사용할 수 있지만 테스트 기준 환경으로 보지 않는다.
 
 ## WSL Node 런타임 주의

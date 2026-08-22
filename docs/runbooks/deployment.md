@@ -1,6 +1,36 @@
 # 배포 및 실행
 
-## 기본 개발 실행
+> 현재 기준 배포 대상은 `192.168.1.14`이며 Docker/PostgreSQL은 14번에서만 실행한다. 13번은 source API와 rollback 기준으로 읽기만 한다. 새 배포는 [migration.md](migration.md)와 [`scripts/deploy-server14.sh`](../../scripts/deploy-server14.sh)를 우선 사용한다. 이 문서의 기존 ODROID 절차는 historical reference다.
+
+## 14번 현재 운영 절차
+
+1. 14번에 `/home/digitie/apps/parking-radar/.env.server14`를 만들고
+   [`.env.server14.example`](../../.env.server14.example)의 실제 DB 비밀번호와 운영
+   API key를 입력한다.
+2. WSL 로컬 테스트와 `docker compose config`를 통과시킨다.
+3. [`scripts/deploy-server14.sh`](../../scripts/deploy-server14.sh)를 실행한다. 이
+   스크립트는 14번의 `docker compose`만 호출하며 다른 Compose project를 중지하지 않는다.
+4. [migration.md](migration.md)의 prewarm → final delta → 240초 이내 cutover 검증을
+   완료한다.
+
+```bash
+REMOTE_HOST=192.168.1.14 \
+REMOTE_APP_DIR=/home/digitie/apps/parking-radar \
+./scripts/deploy-server14.sh
+```
+
+14번의 기본 구성은 PostgreSQL 16, `COLLECT_INTERVAL_SECONDS=300`,
+`MANUAL_COLLECT_MIN_INTERVAL_SECONDS=300`이다. 백업 UI는 별도 인증이 없으므로
+인터넷에 직접 노출하지 않고 내부망/게이트웨이 접근 제어를 전제로 한다.
+
+운영 포트 계약:
+
+- web: `14001` (`http://192.168.1.14:14001`)
+- API: `14000` (`http://192.168.1.14:14000`)
+- Docker 내부 backend: `http://backend:8000`
+- 외부 live E2E: `https://pr.digitie.mywire.org`
+
+## 로컬 개발 실행
 
 ```bash
 docker compose build
@@ -12,7 +42,13 @@ docker compose up -d
 - 프론트엔드: [http://localhost:3000](http://localhost:3000)
 - 백엔드 문서: [http://localhost:8000/docs](http://localhost:8000/docs)
 
-## 실데이터 실행
+## Historical: 기존 13번/ODROID 설정 (실행 금지)
+
+아래 내용은 13번의 기존 SQLite/10분 운영을 보존하기 위한 참고 기록이다. 13번에서
+Docker를 실행·중지·재생성하지 않는다. 현재 운영 배포에는 사용하지 말고, source API와
+rollback 상태를 확인할 때만 읽는다.
+
+## 기존 실데이터 설정
 
 `.env` 또는 셸 환경 변수에 다음 값을 넣는다.
 

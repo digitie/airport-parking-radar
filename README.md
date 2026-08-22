@@ -75,7 +75,40 @@ docker compose up -d
 - 프론트엔드: [http://localhost:3000](http://localhost:3000)
 - 백엔드 문서: [http://localhost:8000/docs](http://localhost:8000/docs)
 
-## ODROID M1S 배포
+## 192.168.1.14 운영 배포
+
+14번에서만 Docker/PostgreSQL을 실행한다. 운영 공개 포트는 API `14000`, web `14001`이며
+외부 live E2E 기준 주소는 [https://pr.digitie.mywire.org/](https://pr.digitie.mywire.org/)다.
+13번에서는 Docker를 실행하거나 중지하지 않고, cutover 전까지 source API와 rollback
+기준으로 유지한다.
+
+운영 환경 파일은 14번의
+`/home/digitie/apps/parking-radar/.env.server14`에만 두며
+[`.env.server14.example`](.env.server14.example)을 시작점으로 사용한다.
+
+```bash
+REMOTE_HOST=192.168.1.14 \
+REMOTE_APP_DIR=/home/digitie/apps/parking-radar \
+./scripts/deploy-server14.sh
+```
+
+배포 후 확인:
+
+```bash
+curl -fsS http://192.168.1.14:14000/health
+curl -fsS http://192.168.1.14:14001/
+curl -fsS https://pr.digitie.mywire.org/api/backend/health
+```
+
+데이터 이전과 5분 무손실 cutover는 [`docs/runbooks/migration.md`](docs/runbooks/migration.md)를
+따른다. live UI 검증은 다음처럼 외부 도메인으로 실행한다.
+
+```bash
+cd frontend
+E2E_BASE_URL=https://pr.digitie.mywire.org npm run test:e2e
+```
+
+## Historical: 기존 13번 ODROID 배포 (실행 금지)
 
 배포 기준 정보는 루트의 [.env.odroid](</F:/dev/parking-radar/.env.odroid>)에 저장한다.
 

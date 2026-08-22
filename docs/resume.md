@@ -7,6 +7,8 @@
 - 현재 단계: 기준선 조사 및 구조 전환 설계
 - 운영 원본: `digitie@192.168.1.13:/home/digitie/apps/parking-radar`
 - 새 운영 대상: `digitie@192.168.1.14`
+- 14번 공개 포트: API `14000`, web `14001`; live E2E 기준 URL:
+  `https://pr.digitie.mywire.org`
 
 ## 다음 한 작업
 
@@ -24,4 +26,3 @@
 - exact SQLite dump를 얻을 수 있는지와 13번 수집기를 언제 중지할지 운영 cutover 때 확정한다.
 - 14번의 실제 외부 API 키·도메인·포트·백업 보존 위치를 `.env`에 주입하고 값 자체는
   문서나 커밋에 남기지 않는다.
-

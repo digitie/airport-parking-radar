@@ -26,7 +26,8 @@
 
 ## 기본 원칙
 
-- FastAPI, SQLAlchemy 2, SQLite, Next.js, React 기반 구조를 유지한다.
+- FastAPI, SQLAlchemy 2, PostgreSQL, Next.js, React 기반 구조를 유지한다. SQLite는
+  legacy import와 빠른 단위 테스트 호환성에만 사용한다.
 - 운영 환경은 Docker Compose를 기준으로 설계한다.
 - 기능 변경 시 문서와 테스트를 함께 갱신한다.
 - 운영 중 발견한 예외사항, 외부 API 접근 상태, 타임존 기준, 수집 제한 규칙은 문서로 남긴다.
@@ -59,7 +60,7 @@
 - Windows 로컬 PowerShell에서 테스트를 끝낸 것으로 판단하지 않는다.
 - 1차 테스트는 `WSL2` 셸에서 백엔드/프론트엔드 로컬 테스트로 실행한다.
 - 2차 테스트는 `WSL2 + Docker`에서 `docker compose run --rm --no-deps ...` 형태로 실행한다.
-- 1차와 2차 테스트가 통과한 뒤 ODROID에 배포한다.
+- 1차와 2차 테스트가 통과한 뒤 192.168.1.14에 배포한다.
 - 반응형 UI 변경 시 모바일/데스크톱 렌더링 확인을 포함한다.
 
 ## 문서 반영 범위
@@ -84,6 +85,7 @@
 - 2차 테스트는 `WSL2 + Docker`에서 실행한다.
   - 백엔드: `docker compose run --rm --no-deps backend pytest -q`
   - 프론트엔드: `docker compose run --rm --no-deps frontend npm run test -- --run`
-- ODROID 배포는 1차/2차 테스트 이후 진행한다.
+- 192.168.1.14 배포는 1차/2차 테스트 이후 진행한다. 192.168.1.13에서는 Docker를
+  실행하거나 중지하지 않는다.
 - Windows PowerShell은 배포 스크립트 실행과 원격 상태 확인 보조 용도로 사용하고, 테스트 기준 환경으로 간주하지 않는다.
-- ODROID 장애 조사 중 사용자가 명시하지 않은 다른 WSL 프로젝트의 컨테이너/프로세스는 임의로 중지하거나 변경하지 않는다.
+- 운영 장애 조사 중 사용자가 명시하지 않은 다른 WSL 프로젝트의 컨테이너/프로세스는 임의로 중지하거나 변경하지 않는다.
