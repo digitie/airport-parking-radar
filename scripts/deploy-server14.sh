@@ -45,7 +45,16 @@ set +a
 docker compose --project-name "${COMPOSE_PROJECT_NAME}" --env-file "${REMOTE_ENV_FILE}" -f docker-compose.yml up -d --build
 docker compose --project-name "${COMPOSE_PROJECT_NAME}" --env-file "${REMOTE_ENV_FILE}" -f docker-compose.yml ps
 curl -fsS "http://127.0.0.1:${PUBLIC_API_PORT:-14000}/health" >/dev/null
-curl -fsS "http://127.0.0.1:${PUBLIC_WEB_PORT:-14001}/" >/dev/null
+for attempt in $(seq 1 30); do
+  if curl -fsS "http://127.0.0.1:${PUBLIC_WEB_PORT:-14001}/" >/dev/null; then
+    break
+  fi
+  if [[ "${attempt}" == "30" ]]; then
+    echo "frontend did not become ready within 60 seconds" >&2
+    exit 1
+  fi
+  sleep 2
+done
 rm -f "${REMOTE_ARCHIVE}"
 REMOTE_SCRIPT
 
