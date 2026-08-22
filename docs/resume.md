@@ -20,8 +20,8 @@ PR [#2](https://github.com/digitie/airport-parking-radar/pull/2)의 green CI와 
 
 - 13번의 현재 서비스는 프론트 `:3000`, 백엔드 `:8000`에서 응답한다.
 - 13번은 Docker를 조작하지 않고 `http://192.168.1.13:3000/api/backend` HTTP GET만 사용했다.
-- 13번 수집기는 10분 주기, 14번 scheduler는 300초 주기로 운영 중이며 14번 최근 run은
-  2026-08-22T03:15:02Z에 성공했다.
+- 13번 수집기는 10분 주기, 14번 scheduler는 configured 300초/effective 240초로 운영 중이며
+  14번 최근 검증 run은 `36`, `2026-08-22T04:13:03Z`에 성공했다.
 - 14번 PostgreSQL은 Alembic `0003_legacy_source_identity (head)`이고 14번은 Docker Compose로
   API `14000`, web `14001`을 제공한다. configured scheduler는 300초, effective tick은
   240초 safety buffer다.

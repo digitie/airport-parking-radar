@@ -12,9 +12,10 @@
 - PostgreSQL 16/Alembic clean upgrade와 14번 runtime을 확인했다. remote status는
   Alembic `0003_legacy_source_identity (head)`, API `14000`, web `14001`, configured scheduler
   `300s`, effective scheduler `240s`, safety buffer `60s`다.
-- HTTP migration은 7일 prewarm `imported_snapshots=36878`, `source_lots=53`, `failures=0`으로
-  완료했고, reconciliation 후 duplicate lot `0`을 확인했다. 2026-08-22 현재 DB query는
-  `parking_snapshots=37890`, distinct lots `44`다.
+- HTTP migration은 7일 prewarm `imported_snapshots=36878`, 1일 delta
+  `imported_snapshots=5192`, `source_lots=53`, `failures=0`으로 완료했고, reconciliation 후
+  duplicate lot `0`을 확인했다. 2026-08-22 현재 DB query는 `parking_snapshots=38946`,
+  distinct lots `44`, reference lots `53`, legacy IDs `53`이다.
 - 14번 target collector run은 최종 검증 시 id `36`, observed `2026-08-22T04:13:03Z`,
   success, snapshot_count `44`였다. strict 7회 × 50초(총 300초) HTTP-only cutover
   observation은 각 `failure_count=0`, final `failed_samples=0`이었다. verifier는 stable
@@ -30,6 +31,6 @@
   무인증 backup/restore는 사용자의 명시 요구라 유지하되 gateway/private network 보호를
   runbook에 남겼다.
 - Draft PR [#2](https://github.com/digitie/airport-parking-radar/pull/2)의 최신 head는
-  `27e7b76`이며 workflow `32551777049`의 backend(PostgreSQL + `alembic check`), frontend,
+  `49e4a3e`이며 workflow `32551945257`의 backend(PostgreSQL + `alembic check`), frontend,
   live-e2e가 모두 green인 merge 단계다. 13번에는 Docker 명령을
   실행하지 않았다.
