@@ -1,15 +1,17 @@
 from __future__ import annotations
 
+import os
 from collections.abc import AsyncIterator
 from pathlib import Path
 
 from sqlalchemy import event, text
 from sqlalchemy.engine import make_url
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.pool import NullPool
 
 from app.models import Base
 
-ALEMBIC_HEAD = "0002_integrity_and_freshness"
+ALEMBIC_HEAD = "0003_legacy_source_identity"
 
 
 def create_engine_and_session_factory(database_url: str) -> tuple[AsyncEngine, async_sessionmaker[AsyncSession]]:
@@ -30,7 +32,10 @@ def create_engine_and_session_factory(database_url: str) -> tuple[AsyncEngine, a
         "pool_recycle": 1800,
     }
     if database_url.startswith("postgresql"):
-        engine_options.update({"pool_size": 5, "max_overflow": 5})
+        if os.getenv("PARKING_RADAR_TEST_DATABASE") == "1":
+            engine_options["poolclass"] = NullPool
+        else:
+            engine_options.update({"pool_size": 5, "max_overflow": 5})
     engine = create_async_engine(database_url, **engine_options)
 
     if database_url.startswith("sqlite"):

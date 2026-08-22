@@ -1,11 +1,15 @@
 from __future__ import annotations
 
+import asyncio
+import os
 from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
+from sqlalchemy import text
 
 from app.core.config import Settings
+from app.db.session import create_engine_and_session_factory
 from app.main import create_app
 
 
@@ -16,8 +20,26 @@ def fixtures_dir() -> Path:
 
 @pytest.fixture
 def test_settings(tmp_path: Path) -> Settings:
+    database_url = os.getenv("TEST_DATABASE_URL") or os.getenv("DATABASE_URL")
+    if not database_url:
+        database_url = f"sqlite+aiosqlite:///{tmp_path / 'test.sqlite3'}"
+    if database_url.startswith(("postgres://", "postgresql://", "postgresql+asyncpg://")):
+        os.environ["PARKING_RADAR_TEST_DATABASE"] = "1"
+        engine, _session_factory = create_engine_and_session_factory(database_url)
+
+        async def reset_postgres() -> None:
+            async with engine.begin() as connection:
+                await connection.execute(
+                    text(
+                        "TRUNCATE TABLE raw_api_responses, parking_snapshots, parking_fee_rules, "
+                        "analytics_caches, collection_runs, parking_lots, airports RESTART IDENTITY CASCADE"
+                    )
+                )
+            await engine.dispose()
+
+        asyncio.run(reset_postgres())
     return Settings(
-        database_url=f"sqlite+aiosqlite:///{tmp_path / 'test.sqlite3'}",
+        database_url=database_url,
         seed_sample_data=True,
         enable_scheduler=False,
         collect_interval_seconds=300,

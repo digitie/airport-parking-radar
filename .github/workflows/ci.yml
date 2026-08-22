@@ -35,6 +35,7 @@ jobs:
       - uses: astral-sh/setup-uv@v6
       - run: uv sync --extra dev --locked
       - run: uv run alembic -c alembic.ini upgrade head
+      - run: uv run alembic -c alembic.ini check
       - run: uv run pytest tests -q
 
   frontend:

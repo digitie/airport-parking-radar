@@ -856,6 +856,56 @@ select {
   min-width: 920px;
 }
 
+.daily-flight-marker-list {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+  overflow-x: auto;
+  padding: 0 0 4px;
+}
+
+.daily-flight-marker-button {
+  flex: 0 0 auto;
+  min-width: 118px;
+  padding: 8px 10px;
+  border: 1px solid rgba(31, 37, 48, 0.1);
+  border-radius: 12px;
+  background: var(--surface-strong);
+  color: inherit;
+  cursor: pointer;
+  text-align: left;
+}
+
+.daily-flight-marker-button strong,
+.daily-flight-marker-button small {
+  display: block;
+}
+
+.daily-flight-marker-button strong {
+  color: var(--ink);
+  font-size: 0.82rem;
+}
+
+.daily-flight-marker-button small {
+  margin-top: 3px;
+  color: var(--muted);
+  font-size: 0.74rem;
+}
+
+.daily-flight-marker-button-departure {
+  border-color: rgba(37, 99, 235, 0.22);
+}
+
+.daily-flight-marker-button-arrival {
+  border-color: rgba(219, 39, 119, 0.22);
+}
+
+.daily-flight-marker-button.active,
+.daily-flight-marker-button:focus-visible {
+  outline: 2px solid rgba(12, 139, 125, 0.32);
+  outline-offset: 2px;
+}
+
 .daily-overlay-chart {
   display: block;
   width: 100%;

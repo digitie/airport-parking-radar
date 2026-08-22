@@ -31,9 +31,13 @@ JSON_TYPE = JSON().with_variant(JSONB, "postgresql")
 
 class Airport(Base):
     __tablename__ = "airports"
+    __table_args__ = (
+        UniqueConstraint("code", name="uq_airports_code"),
+        Index("ix_airports_code", "code"),
+    )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    code: Mapped[str] = mapped_column(String(10), unique=True, index=True)
+    code: Mapped[str] = mapped_column(String(10))
     name_ko: Mapped[str] = mapped_column(String(120))
     name_en: Mapped[str | None] = mapped_column(String(120), nullable=True)
     source: Mapped[str] = mapped_column(String(30))
@@ -48,11 +52,20 @@ class ParkingLot(Base):
     __table_args__ = (
         UniqueConstraint("airport_id", "source_lot_id", name="uq_parking_lot_source"),
         UniqueConstraint("id", "airport_id", name="uq_parking_lot_id_airport"),
+        Index(
+            "uq_parking_lot_legacy_source",
+            "airport_id",
+            "legacy_source_lot_id",
+            unique=True,
+            postgresql_where=text("legacy_source_lot_id IS NOT NULL"),
+            sqlite_where=text("legacy_source_lot_id IS NOT NULL"),
+        ),
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     airport_id: Mapped[int] = mapped_column(ForeignKey("airports.id", ondelete="CASCADE"), index=True)
     source_lot_id: Mapped[str] = mapped_column(String(120))
+    legacy_source_lot_id: Mapped[str | None] = mapped_column(String(120), nullable=True)
     name: Mapped[str] = mapped_column(String(120))
     terminal: Mapped[str | None] = mapped_column(String(40), nullable=True)
     category: Mapped[str | None] = mapped_column(String(40), nullable=True)
@@ -119,6 +132,13 @@ class ParkingSnapshot(Base):
         Index("ix_parking_snapshots_airport_observed", "airport_id", "observed_at"),
         Index("ix_parking_snapshots_lot_observed", "parking_lot_id", "observed_at"),
         Index("ix_parking_snapshots_airport_lot_observed", "airport_id", "parking_lot_id", "observed_at"),
+        Index(
+            "ix_parking_snapshots_airport_lot_observed_desc",
+            "airport_id",
+            "parking_lot_id",
+            text("observed_at DESC"),
+            text("id DESC"),
+        ),
         Index("ix_parking_snapshots_collection_run_id", "collection_run_id"),
         Index("ix_parking_snapshots_collected_at", "collected_at"),
     )

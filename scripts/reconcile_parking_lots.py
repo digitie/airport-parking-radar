@@ -11,6 +11,8 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import json
+from pathlib import Path
 
 from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -24,7 +26,26 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--apply", action="store_true", help="apply the reviewed merge; default is a read-only dry run")
+    parser.add_argument(
+        "--mapping-file",
+        type=Path,
+        help="JSON review artifact listing explicitly approved same-name source-ID pairs",
+    )
     return parser.parse_args()
+
+
+def load_allowed_pairs(path: Path | None) -> set[tuple[str, tuple[str, str]]]:
+    if path is None:
+        return set()
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    pairs: set[tuple[str, tuple[str, str]]] = set()
+    for item in payload.get("allowed_pairs", []):
+        airport_code = str(item["airport_code"]).upper()
+        source_ids = [str(source_id) for source_id in item["source_lot_ids"]]
+        if len(source_ids) != 2 or source_ids[0] == source_ids[1]:
+            raise ValueError(f"invalid same-name source-ID pair in {path}: {item!r}")
+        pairs.add((airport_code, tuple(sorted(source_ids))))
+    return pairs
 
 
 async def merge_lot(session: AsyncSession, canonical: ParkingLot, duplicate: ParkingLot) -> tuple[int, int, int]:
@@ -55,6 +76,8 @@ async def merge_lot(session: AsyncSession, canonical: ParkingLot, duplicate: Par
                 "available_spaces",
                 "congestion_label",
                 "congestion_ratio",
+                "collected_at",
+                "raw_item_json",
             )
             if any(getattr(existing, field) != getattr(snapshot, field) for field in comparable_fields):
                 raise ValueError(
@@ -79,10 +102,39 @@ async def merge_lot(session: AsyncSession, canonical: ParkingLot, duplicate: Par
             )
         )
         if existing is not None:
+            comparable_fields = (
+                "airport_id",
+                "vehicle_size",
+                "day_type",
+                "free_minutes",
+                "basic_minutes",
+                "basic_fee",
+                "unit_minutes",
+                "unit_fee",
+                "daily_max_fee",
+                "source_updated_at",
+                "raw_item_json",
+            )
+            if any(getattr(existing, field) != getattr(rule, field) for field in comparable_fields):
+                raise ValueError(
+                    "conflicting duplicate fee rule; refusing to delete data for "
+                    f"lot={duplicate.id} vehicle_size={rule.vehicle_size} day_type={rule.day_type}"
+                )
             await session.delete(rule)
             continue
         rule.parking_lot_id = canonical.id
         moved_fee_rules += 1
+
+    if duplicate.legacy_source_lot_id is not None:
+        if (
+            canonical.legacy_source_lot_id is not None
+            and canonical.legacy_source_lot_id != duplicate.legacy_source_lot_id
+        ):
+            raise ValueError(
+                "conflicting legacy source identity; refusing to delete data for "
+                f"lots={canonical.id},{duplicate.id}"
+            )
+        canonical.legacy_source_lot_id = duplicate.legacy_source_lot_id
 
     await session.execute(delete(AnalyticsCache).where(AnalyticsCache.parking_lot_id == duplicate.id))
     await session.delete(duplicate)
@@ -90,6 +142,10 @@ async def merge_lot(session: AsyncSession, canonical: ParkingLot, duplicate: Par
 
 
 async def reconcile(args: argparse.Namespace) -> int:
+    apply_changes = args.apply and not args.dry_run
+    if apply_changes and args.mapping_file is None:
+        raise ValueError("--apply requires --mapping-file with an explicit reviewed mapping")
+    allowed_pairs = load_allowed_pairs(args.mapping_file)
     settings = Settings()
     engine, session_factory = create_engine_and_session_factory(settings.database_url)
     merged = moved_snapshots = deleted_snapshots = moved_fee_rules = 0
@@ -121,13 +177,18 @@ async def reconcile(args: argparse.Namespace) -> int:
                 for duplicate in same_name_lots:
                     if duplicate.id == canonical.id:
                         continue
+                    pair = (airport.code.upper(), tuple(sorted((canonical.source_lot_id, duplicate.source_lot_id))))
+                    if pair not in allowed_pairs:
+                        raise ValueError(
+                            "same-name lot merge is not explicitly approved; "
+                            f"add {pair!r} to the mapping file"
+                        )
                     moved, deleted, fees = await merge_lot(session, canonical, duplicate)
                     merged += 1
                     moved_snapshots += moved
                     deleted_snapshots += deleted
                     moved_fee_rules += fees
 
-        apply_changes = args.apply and not args.dry_run
         if not apply_changes:
             await session.rollback()
         else:

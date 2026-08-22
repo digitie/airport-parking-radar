@@ -8,6 +8,8 @@ from pydantic import BaseModel, Field, model_validator
 
 class ParkingLotSummary(BaseModel):
     id: int
+    source_lot_id: str
+    legacy_source_lot_id: str | None = None
     name: str
     terminal: str | None = None
     category: str | None = None

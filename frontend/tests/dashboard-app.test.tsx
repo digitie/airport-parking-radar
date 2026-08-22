@@ -24,14 +24,14 @@ const airports: Airport[] = [
     name_ko: "Gimpo",
     name_en: "Gimpo",
     source: "kac",
-    parking_lots: [{ id: 1, name: "Domestic P1", terminal: null, category: null, is_active: true }],
+    parking_lots: [{ id: 1, source_lot_id: "gmp-1", legacy_source_lot_id: null, name: "Domestic P1", terminal: null, category: null, is_active: true }],
   },
   {
     code: "PUS",
     name_ko: "Gimhae",
     name_en: "Gimhae",
     source: "kac",
-    parking_lots: [{ id: 5, name: "Passenger P1", terminal: null, category: null, is_active: true }],
+    parking_lots: [{ id: 5, source_lot_id: "pus-1", legacy_source_lot_id: null, name: "Passenger P1", terminal: null, category: null, is_active: true }],
   },
 ];
 

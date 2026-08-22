@@ -119,27 +119,13 @@ E2E_BASE_URL=https://pr.digitie.mywire.org npm run test:e2e
 - 사용자: `digitie`
 - 앱 디렉터리: `/home/digitie/apps/parking-radar`
 
-배포 명령:
+13번은 보존된 기존 시스템이며 배포 대상이 아니다. 이 프로젝트의 Docker,
+PostgreSQL, 백업/복원, 수집 스케줄러는 모두 14번에서만 실행한다. 따라서
+13번을 대상으로 하는 배포 스크립트와 `docker compose` 명령은 실행하지 않는다.
+13번은 `https://pr2.digitie.mywire.org/`의 기존 서비스에서 HTTP 읽기만 허용되는
+마이그레이션 원본으로 취급한다.
 
-```powershell
-.\scripts\deploy-odroid.ps1
-```
-
-이 스크립트는 다음을 자동으로 수행한다.
-
-1. 현재 프로젝트를 압축
-2. ODROID로 업로드
-3. 원격에서 `docker compose build`
-4. 원격에서 `docker compose up -d`
-5. 웹 / API 헬스 체크
-
-비밀번호는 저장하지 않으며, 실행 시점에만 입력한다.
-
-배포 후 상태 확인:
-
-```powershell
-.\scripts\odroid-status.ps1
-```
+14번 배포와 상태 확인은 [server14 배포 런북](docs/runbooks/deployment.md)을 따른다.
 
 운영 프론트는 기본적으로 같은 origin의 `/api/backend`를 호출하고, Next.js 서버가 Docker 내부 백엔드(`BACKEND_INTERNAL_URL=http://backend:8000`)로 프록시한다. 그래서 내부 LAN 주소와 외부 HTTPS 주소를 같은 빌드로 처리한다.
 

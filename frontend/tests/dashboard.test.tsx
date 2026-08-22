@@ -22,8 +22,8 @@ const airports: Airport[] = [
     name_en: "Gimpo",
     source: "kac",
     parking_lots: [
-      { id: 1, name: "국내선 제1주차장", terminal: "국내선", category: "short", is_active: true },
-      { id: 2, name: "국제선 지하주차장", terminal: "국제선", category: "short", is_active: true },
+      { id: 1, source_lot_id: "gmp-1", legacy_source_lot_id: null, name: "국내선 제1주차장", terminal: "국내선", category: "short", is_active: true },
+      { id: 2, source_lot_id: "gmp-2", legacy_source_lot_id: null, name: "국제선 지하주차장", terminal: "국제선", category: "short", is_active: true },
     ],
   },
 ];

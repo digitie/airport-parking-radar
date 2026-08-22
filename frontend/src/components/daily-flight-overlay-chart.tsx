@@ -379,23 +379,11 @@ export function DailyFlightOverlayChart({
                 {flightMarkers.map((marker) => (
                   <g
                     key={marker.key}
-                    aria-label={marker.label}
-                    aria-pressed={marker.key === selectedFlightKey}
                     className={`daily-flight-marker daily-flight-marker-${marker.direction} ${
                       marker.key === activeFlightKey ? "active" : ""
                     }`}
                     data-testid="daily-flight-marker"
-                    role="button"
-                    tabIndex={0}
                     onClick={() => setSelectedFlightKey((current) => (current === marker.key ? null : marker.key))}
-                    onFocus={() => setHoveredFlightKey(marker.key)}
-                    onBlur={() => setHoveredFlightKey(null)}
-                    onKeyDown={(event) => {
-                      if (event.key === "Enter" || event.key === " ") {
-                        event.preventDefault();
-                        setSelectedFlightKey((current) => (current === marker.key ? null : marker.key));
-                      }
-                    }}
                     onMouseEnter={() => setHoveredFlightKey(marker.key)}
                     onMouseLeave={() => setHoveredFlightKey(null)}
                   >
@@ -411,6 +399,30 @@ export function DailyFlightOverlayChart({
                   </g>
                 ))}
               </svg>
+            </div>
+            <div className="daily-flight-marker-list" aria-label="비행편 선택" role="group">
+              {flightMarkers.map((marker) => (
+                <button
+                  key={`button-${marker.key}`}
+                  aria-label={marker.label}
+                  aria-pressed={marker.key === selectedFlightKey}
+                  className={`daily-flight-marker-button daily-flight-marker-button-${marker.direction} ${
+                    marker.key === activeFlightKey ? "active" : ""
+                  }`}
+                  data-testid="daily-flight-marker-button"
+                  type="button"
+                  onClick={() => setSelectedFlightKey((current) => (current === marker.key ? null : marker.key))}
+                  onFocus={() => setHoveredFlightKey(marker.key)}
+                  onBlur={() => setHoveredFlightKey(null)}
+                  onMouseEnter={() => setHoveredFlightKey(marker.key)}
+                  onMouseLeave={() => setHoveredFlightKey(null)}
+                >
+                  <strong>
+                    {formatAxisTimeLabel(marker.marker_at)} {marker.flight_number}
+                  </strong>
+                  <small>{formatFlightDirection(marker.direction)}</small>
+                </button>
+              ))}
             </div>
           </div>
 

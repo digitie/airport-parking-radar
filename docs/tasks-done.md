@@ -10,7 +10,7 @@
 - 포트는 API `14000`, web `14001`이며, PostgreSQL은 loopback `5432`로 제한했다.
 - HTTP migration 결과: `imported_snapshots=36878`, `source_lots=53`, `failures=0`.
 - lot reconciliation 후 중복 lot `0`, 현재 PostgreSQL `parking_snapshots=37890`, distinct lot `44`.
-- 6회 × 60초 cutover observation: 각 `failure_count=0`, 최종 `failed_samples=0`.
+- 7회 × 50초(총 300초) strict cutover observation: 각 `failure_count=0`, 최종 `failed_samples=0`.
 - 13번에는 Docker 명령을 실행하지 않고 HTTP GET만 수행했다.
 
 ### `T-022` — exact live E2E·운영 smoke
@@ -26,7 +26,8 @@
 - James(frontend/live UI)와 Popper(backend/PostgreSQL/ops)를 각각 독립 read-only reviewer로
   운용했다.
 - Alembic lineage, source lag verifier, proxy timeout, backup pre-restore receipt, accessibility,
-  13번 Docker 금지 guard 등 P0/P1 지적을 반영했다.
+  stable legacy lot identity, explicit reconciliation mapping, PostgreSQL tests, 13번 Docker 금지
+  guard 등 P0/P1 지적을 반영했다.
 - 인증 없는 admin backup/restore는 사용자의 명시 요구라 유지하되, UI·runbook에 외부 공개 금지와
   gateway/private ACL 필요성을 명시했다.
 
@@ -68,13 +69,14 @@
 
 - 7일 HTTP prewarm과 1일 delta import를 모두 실패 시 rollback하는 방식으로 수행했다.
 - target scheduler는 `300s`, source는 read-only 유지 상태에서 5분 연속성 gate를 통과했다.
-- source가 먼저 새 관측을 노출하는 정상 전파 tail을 허용하되, lot freshness와 successful run
-  gap은 `360s`를 넘지 않도록 verifier를 보정했다.
+- source/target lot은 stable legacy ID로 대조하고, 양쪽 무관측 lot은 명시 allowlist 없이는
+  통과하지 않는다. lot freshness, source lag, successful run gap 모두 `300s` 한도로 검사한다.
 
 ### `T-002` — Docker Compose + PostgreSQL + Alembic
 
 - PostgreSQL 16 Compose, async SQLAlchemy, Alembic `0001_initial` → `0002_integrity_and_freshness`
-  lineage, Postgres schema-head guard를 구현했다.
+  → `0003_legacy_source_identity` lineage, Postgres schema-head guard와 model/schema drift CI를
+  구현했다.
 - clean PostgreSQL `alembic upgrade head`, GitHub PostgreSQL CI, 14번 runtime health를 통과했다.
 
 ### `T-001` — kor-travel-map식 저장소·문서·AI 작업 구조

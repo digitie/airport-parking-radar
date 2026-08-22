@@ -109,6 +109,7 @@ describe("DailyFlightOverlayChart", () => {
     expect(screen.getByTestId("daily-flight-overlay-chart")).toBeInTheDocument();
     expect(screen.getAllByTestId("daily-overlay-line")).toHaveLength(7);
     expect(screen.getAllByTestId("daily-flight-marker")).toHaveLength(2);
+    expect(screen.getAllByTestId("daily-flight-marker-button")).toHaveLength(2);
     expect(screen.getByText("00:00")).toBeInTheDocument();
     expect(screen.getByText("06:00")).toBeInTheDocument();
     expect(screen.getByText("12:00")).toBeInTheDocument();
@@ -204,6 +205,23 @@ describe("DailyFlightOverlayChart", () => {
     expect(screen.queryByTestId("daily-flight-highlight-label")).not.toBeInTheDocument();
 
     fireEvent.click(marker);
+    expect(screen.getByTestId("daily-flight-highlight-label")).toHaveTextContent("KE1101");
+  });
+
+  test("offers native keyboard controls for flight markers outside the SVG image", async () => {
+    const user = userEvent.setup();
+    render(
+      <DailyFlightOverlayChart
+        flightStatus={buildFlightStatus()}
+        holidays={buildHolidays()}
+        series={buildSeries()}
+        scopeLabel="P1 주차장"
+      />
+    );
+
+    const button = screen.getByRole("button", { name: /10:00.*KE1101/ });
+    await user.click(button);
+    expect(button).toHaveAttribute("aria-pressed", "true");
     expect(screen.getByTestId("daily-flight-highlight-label")).toHaveTextContent("KE1101");
   });
 });

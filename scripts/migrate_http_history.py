@@ -16,7 +16,7 @@ from typing import Any
 import httpx
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import or_, select
 
 from app.core.config import Settings
 from app.db.session import create_engine_and_session_factory
@@ -98,7 +98,10 @@ async def upsert_reference_data(session: AsyncSession, airport_payload: dict[str
         lot = await session.scalar(
             select(ParkingLot).where(
                 ParkingLot.airport_id == airport.id,
-                ParkingLot.source_lot_id == source_lot_id,
+                or_(
+                    ParkingLot.source_lot_id == source_lot_id,
+                    ParkingLot.legacy_source_lot_id == source_lot_id,
+                ),
             )
         )
         if lot is None:
@@ -121,6 +124,7 @@ async def upsert_reference_data(session: AsyncSession, airport_payload: dict[str
             lot = ParkingLot(
                 airport_id=airport.id,
                 source_lot_id=source_lot_id,
+                legacy_source_lot_id=source_lot_id,
                 name=lot_payload["name"],
                 terminal=lot_payload.get("terminal"),
                 category=lot_payload.get("category"),
@@ -131,6 +135,7 @@ async def upsert_reference_data(session: AsyncSession, airport_payload: dict[str
             session.add(lot)
             await session.flush()
         else:
+            lot.legacy_source_lot_id = source_lot_id
             lot.name = lot_payload["name"]
             lot.terminal = lot_payload.get("terminal")
             lot.category = lot_payload.get("category")

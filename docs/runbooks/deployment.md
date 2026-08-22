@@ -20,7 +20,8 @@ REMOTE_APP_DIR=/home/digitie/apps/parking-radar \
 ./scripts/deploy-server14.sh
 ```
 
-14번의 기본 구성은 PostgreSQL 16, `COLLECT_INTERVAL_SECONDS=300`,
+14번의 기본 구성은 PostgreSQL 16, Alembic `0003_legacy_source_identity`,
+`COLLECT_INTERVAL_SECONDS=300`,
 `MANUAL_COLLECT_MIN_INTERVAL_SECONDS=300`이다. 백업 UI는 별도 인증이 없으므로
 인터넷에 직접 노출하지 않고 내부망/게이트웨이 접근 제어를 전제로 한다.
 

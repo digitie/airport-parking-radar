@@ -248,20 +248,7 @@ function ResponsiveSection({
   title,
 }: ResponsiveSectionProps) {
   if (isMobile === null) {
-    return (
-      <>
-        <div className="responsive-mobile">
-          <details className="mobile-disclosure" data-testid="mobile-disclosure" open={defaultOpen}>
-            <summary>
-              <span>{title}</span>
-              {summary ? <small>{summary}</small> : null}
-            </summary>
-            <div className="mobile-disclosure-body">{children}</div>
-          </details>
-        </div>
-        <div className="responsive-desktop">{children}</div>
-      </>
-    );
+    return <div className="responsive-desktop">{children}</div>;
   }
 
   if (!isMobile) {
@@ -479,58 +466,33 @@ export function DashboardScreen({
       {loading ? <p className="notice">데이터를 불러오는 중입니다.</p> : null}
 
       {isMobile === null ? (
-        <>
-          <div className="responsive-mobile">
-            <section className="lot-card-grid" data-testid="mobile-lot-grid">
-              {visibleItems.map((item) => (
-                <article key={item.parking_lot_id} className={`lot-card ${statusTone(item.status_level)}`}>
-                  <div className="lot-card-top">
-                    <div>
-                      <h3>{item.parking_lot_name}</h3>
-                      <p>{item.terminal ?? "터미널 정보 없음"}</p>
-                    </div>
-                  </div>
-                  <div className="lot-card-stats">
-                    <div>
-                      <span>잔여/전체</span>
-                      <strong>
-                        {formatNumber(item.available_spaces)}/{formatNumber(item.total_spaces)}대
-                      </strong>
-                    </div>
-                  </div>
-                  <p className="stamp">기준 시각 {formatDateTime(item.observed_at)}</p>
-                </article>
-              ))}
-            </section>
-          </div>
-          <div className="responsive-desktop">
-            <section className="table-surface" data-testid="desktop-lot-table">
-              <table className="lot-table">
-                <thead>
-                  <tr>
-                    <th>주차장</th>
-                    <th>잔여/전체</th>
-                    <th>기준 시각</th>
+        <div className="responsive-desktop">
+          <section className="table-surface" data-testid="desktop-lot-table">
+            <table className="lot-table">
+              <thead>
+                <tr>
+                  <th>주차장</th>
+                  <th>잔여/전체</th>
+                  <th>기준 시각</th>
+                </tr>
+              </thead>
+              <tbody>
+                {visibleItems.map((item) => (
+                  <tr key={item.parking_lot_id}>
+                    <td>
+                      <strong>{item.parking_lot_name}</strong>
+                      <span>{item.terminal ?? "터미널 정보 없음"}</span>
+                    </td>
+                    <td>
+                      {formatNumber(item.available_spaces)}/{formatNumber(item.total_spaces)}대
+                    </td>
+                    <td>{formatDateTime(item.observed_at)}</td>
                   </tr>
-                </thead>
-                <tbody>
-                  {visibleItems.map((item) => (
-                    <tr key={item.parking_lot_id}>
-                      <td>
-                        <strong>{item.parking_lot_name}</strong>
-                        <span>{item.terminal ?? "터미널 정보 없음"}</span>
-                      </td>
-                      <td>
-                        {formatNumber(item.available_spaces)}/{formatNumber(item.total_spaces)}대
-                      </td>
-                      <td>{formatDateTime(item.observed_at)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </section>
-          </div>
-        </>
+                ))}
+              </tbody>
+            </table>
+          </section>
+        </div>
       ) : isMobile ? (
         <section className="lot-card-grid" data-testid="mobile-lot-grid">
           {visibleItems.map((item) => (

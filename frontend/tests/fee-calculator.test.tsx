@@ -10,14 +10,14 @@ const airports: Airport[] = [
     name_ko: "김포국제공항",
     name_en: "Gimpo",
     source: "kac",
-    parking_lots: [{ id: 1, name: "국내선 제1주차장", terminal: "국내선", category: "short", is_active: true }]
+    parking_lots: [{ id: 1, source_lot_id: "gmp-1", legacy_source_lot_id: null, name: "국내선 제1주차장", terminal: "국내선", category: "short", is_active: true }]
   },
   {
     code: "ICN",
     name_ko: "인천국제공항",
     name_en: "Incheon",
     source: "incheon",
-    parking_lots: [{ id: 2, name: "T1 단기주차장", terminal: "T1", category: "short", is_active: true }]
+    parking_lots: [{ id: 2, source_lot_id: "icn-1", legacy_source_lot_id: null, name: "T1 단기주차장", terminal: "T1", category: "short", is_active: true }]
   }
 ];
 
@@ -77,4 +77,3 @@ describe("FeeCalculator", () => {
     expect(screen.getByText("인천공항은 현재 요금 계산을 지원하지 않습니다.")).toBeInTheDocument();
   });
 });
-

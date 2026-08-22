@@ -213,6 +213,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                     parking_lots=[
                         ParkingLotSummary(
                             id=lot.id,
+                            source_lot_id=lot.source_lot_id,
+                            legacy_source_lot_id=lot.legacy_source_lot_id,
                             name=lot.name,
                             terminal=lot.terminal,
                             category=lot.category,

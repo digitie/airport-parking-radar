@@ -1,6 +1,11 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+if ! hostname -I 2>/dev/null | tr ' ' '\n' | grep -Fxq '192.168.1.14'; then
+  echo "Refusing Docker bootstrap: this script is allowed only on 192.168.1.14." >&2
+  exit 1
+fi
+
 if command -v docker >/dev/null 2>&1; then
   echo "Docker is already installed."
   exit 0

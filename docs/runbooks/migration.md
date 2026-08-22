@@ -57,7 +57,8 @@ docker compose --project-name parking-radar --env-file .env.server14 run --rm --
 docker compose --project-name parking-radar --env-file .env.server14 run --rm --no-deps \
   backend python /app/scripts/reconcile_parking_lots.py --dry-run
 docker compose --project-name parking-radar --env-file .env.server14 run --rm --no-deps \
-  backend python /app/scripts/reconcile_parking_lots.py --apply
+  backend python /app/scripts/reconcile_parking_lots.py --apply \
+  --mapping-file /app/scripts/cutover-lot-map.json
 sed -i 's/^ENABLE_SCHEDULER=false$/ENABLE_SCHEDULER=true/' .env.server14
 docker compose --project-name parking-radar --env-file .env.server14 up -d backend frontend
 until curl -fsS http://127.0.0.1:14000/health >/dev/null; do sleep 2; done
@@ -74,27 +75,31 @@ HTTP fallback의 경우 13번은 계속 실행 중이므로 source update가 중
 TMPDIR=/tmp uv run --project backend --extra dev python scripts/verify_cutover.py \
   --source-base-url http://192.168.1.13:3000/api/backend \
   --target-base-url http://192.168.1.14:14000 \
-  --days 1 --max-age-seconds 360
+  --days 1 --max-age-seconds 300 --max-source-lag-seconds 300 \
+  --max-run-gap-seconds 300 \
+  --allow-empty-source-lot AIRPORT/LEGACY_ID
 ```
 
-이 명령은 source lot 수, target lot identity 중복, 각 lot의 latest observed와 bounded source
-전파 지연, target scheduler/recent successful run 간격/freshness를 함께 검사한다. 원본이
-먼저 새 관측을 노출하는 정상적인 전파 구간은 `--max-source-lag-seconds 360`까지 허용하며,
-그 이상 source가 앞서거나 target successful run 간격이 `--max-run-gap-seconds 360`을 넘으면
-실패한다. `failure_count=0`이어야 한다.
+이 명령은 source lot 수, target의 안정적인 legacy lot ID 중복, 각 lot의 latest observed,
+source→target 지연, target scheduler/recent successful run 간격/freshness를 함께 검사한다.
+모든 freshness·전파·run gap 한도는 300초이며, 양쪽 모두 관측이 없는 lot만 운영자가
+`--allow-empty-source-lot CODE/ID`로 명시적으로 허용해야 한다. 이름만 같은 lot은 같은
+lot으로 인정하지 않는다. `failure_count=0`이어야 한다.
 
-단일 확인은 5분 연속성의 증거가 아니므로, cutover 승인 전에는 1분 간격 6회 반복 관찰을
+단일 확인은 5분 연속성의 증거가 아니므로, cutover 승인 전에는 50초 간격 7회 반복 관찰을
 실행한다. 이는 0분부터 5분까지의 gate를 만들고 source/target 모두 HTTP read만 수행한다.
 
 ```bash
 TMPDIR=/tmp uv run --project backend --extra dev python scripts/observe_cutover.py \
   --source-base-url http://192.168.1.13:3000/api/backend \
   --target-base-url http://192.168.1.14:14000 \
-  --days 1 --max-age-seconds 360 --max-source-lag-seconds 360 \
-  --max-run-gap-seconds 360 --samples 6 --sample-interval-seconds 60
+  --days 1 --max-age-seconds 300 --max-source-lag-seconds 300 \
+  --max-run-gap-seconds 300 --samples 7 --sample-interval-seconds 50 \
+  --allow-empty-source-lot AIRPORT/LEGACY_ID
 ```
 
-14번 scheduler의 계약은 300초이며 `360`초는 수집/HTTP 전파에 허용하는 60초 tail이다.
+`AIRPORT/LEGACY_ID`는 source `/airports`와 target의 `legacy_source_lot_id`를 대조해 실제
+양쪽 무관측 lot에 대해서만 채운다. 14번 scheduler와 verifier의 계약은 모두 300초이며,
 마지막 출력의 `failed_samples=0`과 각 verifier 출력의 `failure_count=0`을 journal에 기록한다.
 
 ### 5. 검증·보존
@@ -111,7 +116,9 @@ curl -fsS 'http://192.168.1.14:14000/dashboard/bootstrap' >/dev/null
 curl -fsS 'http://192.168.1.14:14000/dashboard/analytics?airport_code=GMP' >/dev/null
 ```
 
-검증 항목은 `docs/tasks.md`와 `docs/journal.md`에 source/target row count, latest observed, latest collected, last run ID, 실제 elapsed seconds를 남긴다. exact dump가 없었으면 raw/run/fee 보존 불가를 숨기지 않고 기록한다.
+검증 항목은 `docs/tasks.md`와 `docs/journal.md`에 source/target row count, stable lot identity,
+latest observed, latest collected, last run ID, 실제 elapsed seconds를 남긴다. exact dump가
+없었으면 raw/run/fee 보존 불가를 숨기지 않고 기록한다.
 
 ## rollback
 

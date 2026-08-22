@@ -1,5 +1,7 @@
 export type ParkingLot = {
   id: number;
+  source_lot_id: string;
+  legacy_source_lot_id: string | null;
   name: string;
   terminal: string | null;
   category: string | null;

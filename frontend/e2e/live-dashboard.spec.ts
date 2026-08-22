@@ -8,6 +8,13 @@ test.describe("live parking-radar dashboard", () => {
     await expect(page.locator('[data-testid="desktop-lot-table"], [data-testid="mobile-lot-grid"]').first()).toBeVisible({
       timeout: 20_000,
     });
+    await expect(page.locator('[data-testid="desktop-lot-table"] tbody tr, [data-testid="mobile-lot-grid"] article').first()).toBeVisible({
+      timeout: 20_000,
+    });
+
+    const apiHealth = await page.request.get("/api/backend/health");
+    expect(apiHealth.status()).toBe(200);
+    expect((await apiHealth.json()).status).toBe("ok");
 
     const airportSelect = page.getByRole("combobox", { name: "공항 선택" });
     await expect.poll(() => airportSelect.locator("option").count(), { timeout: 20_000 }).toBeGreaterThan(0);
@@ -21,6 +28,7 @@ test.describe("live parking-radar dashboard", () => {
     await page.getByRole("button", { name: /백업 \/ 복원/ }).click();
     await expect(page.getByText(/별도 인증 없이 제공되는 운영 도구/)).toBeVisible();
     await expect(page.getByRole("button", { name: "새 백업 만들기" })).toBeVisible();
+    await expect(page.getByText(/저장된 백업이 없습니다|\.dump/)).toBeVisible({ timeout: 20_000 });
   });
 
   for (const width of [320, 375, 414, 768]) {
