@@ -11,6 +11,19 @@
 - 한국공항공사 요금 데이터 기준으로 주차요금 계산이 가능해야 한다.
 - 모바일과 PC 모두에서 동일한 핵심 기능이 동작해야 한다.
 
+## AI 작업 문서와 진입 순서
+
+- 이 저장소의 AI 작업 문서는 `CLAUDE.md`(1쪽 진입 요약), `SKILL.md`(상세 작업
+  매뉴얼), `.claude/agents/`, `.codex/agents/`, `.agents/skills/`에 둔다.
+- 작업 시작 시 `CLAUDE.md` → `AGENTS.md` → `SKILL.md` → `docs/architecture/`의
+  관련 문서 → `docs/resume.md` → 대상 코드 순서로 읽는다.
+- 외부에서 가져온 `.claude/`, `.codex/`, `.agents/skills/` 원문은 upstream 동기화를
+  위해 영어를 유지할 수 있다. 프로젝트 설명과 운영 문서는 한국어로 작성한다.
+- main에 직접 push하지 않고 `codex/` feature branch와 Draft PR을 사용한다. CI,
+  두 명의 적대적 리뷰, live E2E UI 검증이 끝난 뒤에만 머지한다.
+- 192.168.1.13에서는 Docker를 조작하지 않는다. 새 Docker 운영은 192.168.1.14에서만
+  수행한다.
+
 ## 기본 원칙
 
 - FastAPI, SQLAlchemy 2, SQLite, Next.js, React 기반 구조를 유지한다.
