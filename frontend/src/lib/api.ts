@@ -2,6 +2,7 @@ import type {
   Airport,
   BackupFile,
   BackupListResponse,
+  BackupRestoreResponse,
   CollectionSummary,
   CollectorStatusResponse,
   DashboardAnalyticsResponse,
@@ -151,10 +152,10 @@ export function buildApiClient(apiBaseUrl?: string) {
       }
       return response.blob();
     },
-    restoreBackup(file: File): Promise<{ status: "restored"; backup: BackupFile }> {
+    restoreBackup(file: File): Promise<BackupRestoreResponse> {
       const formData = new FormData();
       formData.append("file", file, file.name);
-      return getJson<{ status: "restored"; backup: BackupFile }>(`${baseUrl}/admin/backups/restore`, {
+      return getJson<BackupRestoreResponse>(`${baseUrl}/admin/backups/restore`, {
         method: "POST",
         body: formData,
       });

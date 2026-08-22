@@ -592,6 +592,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         query = select(ParkingFeeRule).where(
             ParkingFeeRule.airport_id == airport.id,
             ParkingFeeRule.vehicle_size == payload.vehicle_size,
+        ).order_by(
+            ParkingFeeRule.parking_lot_id.is_(None).desc(),
+            ParkingFeeRule.parking_lot_id,
+            ParkingFeeRule.day_type,
         )
         if payload.parking_lot_id is not None:
             query = query.where(
@@ -601,9 +605,19 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         fetched_rules = (await session.execute(query)).scalars().all()
         # Generic rules are the fallback; a lot-specific rule must win
         # deterministically when both rows exist.
-        rules = [rule for rule in fetched_rules if rule.parking_lot_id is None]
+        generic_rules = [rule for rule in fetched_rules if rule.parking_lot_id is None]
         if payload.parking_lot_id is not None:
-            rules.extend(rule for rule in fetched_rules if rule.parking_lot_id == payload.parking_lot_id)
+            rules = generic_rules + [
+                rule for rule in fetched_rules if rule.parking_lot_id == payload.parking_lot_id
+            ]
+        elif generic_rules:
+            rules = generic_rules
+        else:
+            # Some providers publish only lot-specific rules. For an airport
+            # wide quote, use the lowest-id lot deterministically instead of
+            # letting database row order decide which rule wins.
+            lot_ids = sorted({rule.parking_lot_id for rule in fetched_rules if rule.parking_lot_id is not None})
+            rules = [rule for rule in fetched_rules if rule.parking_lot_id == (lot_ids[0] if lot_ids else None)]
         if not rules:
             return FeeCalculationResponse(
                 supported=False,
@@ -755,7 +769,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             raise HTTPException(status_code=400, detail=".dump 형식의 PostgreSQL 백업만 복원할 수 있습니다.")
         async with service.operation_lock:
             try:
-                await create_backup(
+                pre_restore = await create_backup(
                     resolved_settings.backup_dir,
                     resolved_settings.database_url,
                     resolved_settings.backup_retention_count,
@@ -775,6 +789,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         return BackupRestoreResponse(
             status="restored",
             backup=BackupFile(filename=restored.filename, size_bytes=restored.size_bytes, created_at=restored.created_at),
+            pre_restore_backup=BackupFile(
+                filename=pre_restore.filename,
+                size_bytes=pre_restore.size_bytes,
+                created_at=pre_restore.created_at,
+            ),
         )
 
     @app.get("/dashboard/bootstrap", response_model=DashboardBootstrapResponse)

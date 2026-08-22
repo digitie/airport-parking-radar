@@ -9,6 +9,8 @@ from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
 from app.models import Base
 
+ALEMBIC_HEAD = "0002_integrity_and_freshness"
+
 
 def create_engine_and_session_factory(database_url: str) -> tuple[AsyncEngine, async_sessionmaker[AsyncSession]]:
     if database_url.startswith("postgres://"):
@@ -50,6 +52,14 @@ def create_engine_and_session_factory(database_url: str) -> tuple[AsyncEngine, a
 
 async def init_database(engine: AsyncEngine) -> None:
     async with engine.begin() as connection:
+        if connection.dialect.name == "postgresql":
+            version = await connection.scalar(text("SELECT version_num FROM alembic_version LIMIT 1"))
+            if version != ALEMBIC_HEAD:
+                raise RuntimeError(
+                    f"PostgreSQL schema is not at Alembic head {ALEMBIC_HEAD!r} (found {version!r})"
+                )
+            return
+
         await connection.run_sync(Base.metadata.create_all)
         await connection.execute(
             text(

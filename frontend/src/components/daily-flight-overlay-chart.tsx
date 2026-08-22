@@ -380,6 +380,7 @@ export function DailyFlightOverlayChart({
                   <g
                     key={marker.key}
                     aria-label={marker.label}
+                    aria-pressed={marker.key === selectedFlightKey}
                     className={`daily-flight-marker daily-flight-marker-${marker.direction} ${
                       marker.key === activeFlightKey ? "active" : ""
                     }`}

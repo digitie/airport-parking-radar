@@ -24,6 +24,12 @@ REMOTE_APP_DIR=/home/digitie/apps/parking-radar \
 `MANUAL_COLLECT_MIN_INTERVAL_SECONDS=300`이다. 백업 UI는 별도 인증이 없으므로
 인터넷에 직접 노출하지 않고 내부망/게이트웨이 접근 제어를 전제로 한다.
 
+보안 예외: 사용자가 별도 application auth를 요구하지 않았으므로 `/admin/collect`와
+`/admin/backups*`는 의도적으로 인증 없이 남겨 둔다. 이 endpoint는 DB dump 다운로드와
+복원을 포함하는 destructive 운영 API이므로, 외부 gateway가 private ACL/mTLS 등으로
+차단되었음을 확인하기 전에는 릴리스 승인 대상이 아니다. UI의 경고 문구는 보안 경계가
+아니다.
+
 운영 포트 계약:
 
 - web: `14001` (`http://192.168.1.14:14001`)

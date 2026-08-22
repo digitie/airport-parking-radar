@@ -110,6 +110,20 @@ docker compose run --rm --no-deps frontend npm run test -- --run
 
 ## 반응형 검증
 
+배포 origin을 지정한 live E2E는 브라우저 설치 후 실행한다. 현재 승인 기준은 반드시
+`https://pr.digitie.mywire.org`이며, 14번 직접 주소는 앱 자체 검증용 보조 경로다.
+
+```bash
+cd frontend
+npm run e2e:install
+E2E_BASE_URL=https://pr.digitie.mywire.org npm run test:e2e
+E2E_BASE_URL=http://192.168.1.14:14001 npm run test:e2e  # 보조 검증
+```
+
+GitHub Actions에서는 repository variable `PARKING_RADAR_LIVE_E2E_URL`이 설정된 경우에만
+`live-e2e` job을 활성화한다. 외부 라우팅이 Home Assistant나 다른 서비스로 향하면 이 job과
+운영 승인 모두 실패로 취급한다.
+
 데스크톱:
 
 - 현재 주차 현황 표 렌더링

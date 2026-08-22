@@ -59,6 +59,10 @@ $remoteAppDir = $config["ODROID_APP_DIR"]
 $publicWebPort = $config["PUBLIC_WEB_PORT"]
 $publicApiPort = $config["PUBLIC_API_PORT"]
 
+if ($remoteHost -eq "192.168.1.13") {
+  throw "Docker 배포가 금지된 192.168.1.13입니다. PostgreSQL/Docker 배포는 192.168.1.14의 deploy-server14.sh만 사용하세요."
+}
+
 if (-not $SshPassword) {
   $securePassword = Read-Host "ODROID SSH 비밀번호" -AsSecureString
   $SshPassword = ConvertTo-PlainText -SecureString $securePassword

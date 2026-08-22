@@ -9,6 +9,10 @@ type RouteContext = {
 
 const BACKEND_INTERNAL_URL = (process.env.BACKEND_INTERNAL_URL ?? "http://localhost:8000").replace(/\/$/, "");
 const BACKEND_PROXY_TIMEOUT_MS = Math.max(1_000, Number(process.env.BACKEND_PROXY_TIMEOUT_MS ?? 10_000) || 10_000);
+const BACKEND_PROXY_BODY_TIMEOUT_MS = Math.max(
+  1_000,
+  Number(process.env.BACKEND_PROXY_BODY_TIMEOUT_MS ?? BACKEND_PROXY_TIMEOUT_MS) || BACKEND_PROXY_TIMEOUT_MS
+);
 const FORWARDED_REQUEST_HEADERS = new Set(["accept", "content-type"]);
 const FORWARDED_RESPONSE_HEADERS = new Set([
   "cache-control",
@@ -98,6 +102,68 @@ function buildProxyErrorResponse(status: 502 | 504, detail: string): Response {
   );
 }
 
+function streamWithReadTimeout(body: ReadableStream<Uint8Array> | null): ReadableStream<Uint8Array> | null {
+  if (!body) {
+    return null;
+  }
+
+  const reader = body.getReader();
+  let closed = false;
+
+  return new ReadableStream<Uint8Array>({
+    async pull(controller) {
+      let timer: ReturnType<typeof setTimeout> | null = null;
+      let settled = false;
+      try {
+        const nextChunk = new Promise<ReadableStreamReadResult<Uint8Array>>((resolve, reject) => {
+          timer = setTimeout(() => {
+            if (settled) {
+              return;
+            }
+            settled = true;
+            void reader.cancel("backend response body timeout").catch(() => undefined);
+            reject(new Error("backend response body timeout"));
+          }, BACKEND_PROXY_BODY_TIMEOUT_MS);
+          reader.read().then(
+            (result) => {
+              if (!settled) {
+                settled = true;
+                resolve(result);
+              }
+            },
+            (error: unknown) => {
+              if (!settled) {
+                settled = true;
+                reject(error);
+              }
+            }
+          );
+        });
+        const result = await nextChunk;
+        if (timer) {
+          clearTimeout(timer);
+        }
+        if (result.done) {
+          closed = true;
+          controller.close();
+        } else {
+          controller.enqueue(result.value);
+        }
+      } catch (error) {
+        if (timer) {
+          clearTimeout(timer);
+        }
+        controller.error(error);
+      }
+    },
+    async cancel(reason) {
+      if (!closed) {
+        await reader.cancel(reason);
+      }
+    },
+  });
+}
+
 async function proxyToBackend(request: NextRequest, context: RouteContext): Promise<Response> {
   const params = await context.params;
   const backendPath = (params.path ?? []).join("/");
@@ -110,18 +176,20 @@ async function proxyToBackend(request: NextRequest, context: RouteContext): Prom
   const targetUrl = `${BACKEND_INTERNAL_URL}/${backendPath}${request.nextUrl.search}`;
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), BACKEND_PROXY_TIMEOUT_MS);
+  const requestBody = method === "GET" || method === "HEAD" ? undefined : request.body;
 
   try {
     const upstreamResponse = await fetch(targetUrl, {
       method,
       headers: buildForwardHeaders(request),
-      body: method === "GET" || method === "HEAD" ? undefined : await request.arrayBuffer(),
+      body: requestBody,
       cache: "no-store",
       redirect: "manual",
       signal: controller.signal,
+      ...(requestBody ? { duplex: "half" as const } : {}),
     });
 
-    return new Response(upstreamResponse.body, {
+    return new Response(streamWithReadTimeout(upstreamResponse.body), {
       status: upstreamResponse.status,
       statusText: upstreamResponse.statusText,
       headers: buildResponseHeaders(upstreamResponse),

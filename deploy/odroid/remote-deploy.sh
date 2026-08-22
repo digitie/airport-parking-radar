@@ -5,6 +5,11 @@ APP_DIR="${APP_DIR:-$HOME/apps/parking-radar}"
 COMPOSE_FILE="${COMPOSE_FILE:-docker-compose.odroid.yml}"
 ENV_FILE="${ENV_FILE:-.env.odroid}"
 
+if [[ " $(hostname -I 2>/dev/null || true) " == *" 192.168.1.13 "* ]]; then
+  echo "Refusing Docker deployment on 192.168.1.13. Docker/PostgreSQL run only on 192.168.1.14." >&2
+  exit 2
+fi
+
 if [[ ! -f "${APP_DIR}/${ENV_FILE}" ]]; then
   echo "Missing env file: ${APP_DIR}/${ENV_FILE}" >&2
   exit 2

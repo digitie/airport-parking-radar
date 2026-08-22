@@ -467,10 +467,21 @@ class CollectionService:
             else:
                 run.status = "partial_success"
         except Exception as exc:
-            run.status = "failed"
-            errors.append(str(exc))
+            failed_at = now_utc()
+            error_message = str(exc)
+            await session.rollback()
+            session.add(
+                CollectionRun(
+                    started_at=started_at,
+                    finished_at=failed_at,
+                    status="failed",
+                    trigger=trigger,
+                    error_message=error_message,
+                )
+            )
+            await session.commit()
             raise
-        finally:
+        else:
             run.finished_at = now_utc()
             run.error_message = "\n".join(errors) if errors else None
             await session.commit()
@@ -629,12 +640,16 @@ class CollectionService:
             # A source can expose a different identifier for the same named lot
             # after an import. Reuse the imported reference row so the live
             # collector does not create a second lot and split its history.
-            lot = await session.scalar(
-                select(ParkingLot)
-                .where(ParkingLot.airport_id == airport_id, ParkingLot.name == name)
-                .order_by(ParkingLot.id)
-                .limit(1)
-            )
+            named_lots = (
+                await session.scalars(
+                    select(ParkingLot)
+                    .where(ParkingLot.airport_id == airport_id, ParkingLot.name == name)
+                    .order_by(ParkingLot.id)
+                )
+            ).all()
+            if len(named_lots) > 1:
+                raise ValueError(f"ambiguous parking lot identity for airport_id={airport_id}, name={name!r}")
+            lot = named_lots[0] if named_lots else None
         timestamp = now_utc()
         if lot is None:
             lot = ParkingLot(

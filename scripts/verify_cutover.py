@@ -84,6 +84,7 @@ async def verify(args: argparse.Namespace) -> int:
 
         target_checks = []
         failures: list[str] = []
+        source_keys = {(code, lot_name) for code, lot_name, _latest, _error in source_results}
         for airport_code, lot_name, source_latest, error in source_results:
             if error:
                 failures.append(f"{airport_code}/{lot_name}: source request failed: {error}")
@@ -102,6 +103,10 @@ async def verify(args: argparse.Namespace) -> int:
                 )
             )
 
+        for target_key in sorted(target_by_key):
+            if target_key not in source_keys:
+                failures.append(f"{target_key[0]}/{target_key[1]}: unexpected target parking lot")
+
         target_results = await asyncio.gather(*target_checks)
         source_by_key = {(code, name): latest for code, name, latest, _ in source_results}
         now = datetime.now(timezone.utc)
@@ -118,6 +123,11 @@ async def verify(args: argparse.Namespace) -> int:
             if source_latest is not None and target_latest < source_latest:
                 failures.append(
                     f"{airport_code}/{lot_name}: target={target_latest.isoformat()} < source={source_latest.isoformat()}"
+                )
+            if (now - target_latest).total_seconds() > args.max_age_seconds:
+                failures.append(
+                    f"{airport_code}/{lot_name}: target freshness is {(now - target_latest).total_seconds():.1f}s "
+                    f"> {args.max_age_seconds}s"
                 )
 
         latest_target_observed = parse_timestamp(target_status.get("latest_snapshot_observed_at"))

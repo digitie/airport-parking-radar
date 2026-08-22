@@ -269,6 +269,12 @@ export type BackupListResponse = {
   items: BackupFile[];
 };
 
+export type BackupRestoreResponse = {
+  status: "restored";
+  backup: BackupFile;
+  pre_restore_backup?: BackupFile;
+};
+
 export type DashboardBootstrapResponse = {
   airports: Airport[];
   current: ParkingCurrentResponse;

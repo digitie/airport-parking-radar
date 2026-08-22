@@ -11,6 +11,14 @@ if [[ "${REMOTE_HOST}" != "192.168.1.14" ]]; then
   echo "Refusing deployment: this script may run Docker only on 192.168.1.14 (got ${REMOTE_HOST})." >&2
   exit 2
 fi
+if [[ "${REMOTE_APP_DIR}" != "/home/digitie/apps/parking-radar" ]]; then
+  echo "Refusing deployment: only /home/digitie/apps/parking-radar is an approved server14 app directory." >&2
+  exit 2
+fi
+if [[ "${REMOTE_ENV_FILE}" != ".env.server14" ]]; then
+  echo "Refusing deployment: only .env.server14 is an approved server14 environment file." >&2
+  exit 2
+fi
 if [[ "${COMPOSE_PROJECT_NAME}" != "parking-radar" ]]; then
   echo "Refusing deployment: this script may update only the parking-radar Compose project." >&2
   exit 2

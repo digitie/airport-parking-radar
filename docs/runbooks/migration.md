@@ -55,7 +55,9 @@ docker compose --project-name parking-radar --env-file .env.server14 run --rm --
   backend python /app/scripts/migrate_http_history.py \
   --source-base-url http://192.168.1.13:3000/api/backend --days 1
 docker compose --project-name parking-radar --env-file .env.server14 run --rm --no-deps \
-  backend python /app/scripts/reconcile_parking_lots.py
+  backend python /app/scripts/reconcile_parking_lots.py --dry-run
+docker compose --project-name parking-radar --env-file .env.server14 run --rm --no-deps \
+  backend python /app/scripts/reconcile_parking_lots.py --apply
 sed -i 's/^ENABLE_SCHEDULER=false$/ENABLE_SCHEDULER=true/' .env.server14
 docker compose --project-name parking-radar --env-file .env.server14 up -d backend frontend
 until curl -fsS http://127.0.0.1:14000/health >/dev/null; do sleep 2; done
@@ -77,6 +79,19 @@ TMPDIR=/tmp uv run --project backend --extra dev python scripts/verify_cutover.p
 
 이 명령은 source lot 수, target lot identity 중복, 각 lot의 latest observed high-watermark,
 target scheduler/last successful run/freshness를 함께 검사한다. `failure_count=0`이어야 한다.
+
+단일 확인은 5분 연속성의 증거가 아니므로, cutover 승인 전에는 1분 간격 6회 반복 관찰을
+실행한다. 이는 0분부터 5분까지의 gate를 만들고 source/target 모두 HTTP read만 수행한다.
+
+```bash
+TMPDIR=/tmp uv run --project backend --extra dev python scripts/observe_cutover.py \
+  --source-base-url http://192.168.1.13:3000/api/backend \
+  --target-base-url http://192.168.1.14:14000 \
+  --days 1 --max-age-seconds 360 --samples 6 --sample-interval-seconds 60
+```
+
+14번 scheduler의 계약은 300초이며 `360`초는 수집/HTTP 전파에 허용하는 60초 tail이다.
+마지막 출력의 `failed_samples=0`과 각 verifier 출력의 `failure_count=0`을 journal에 기록한다.
 
 ### 5. 검증·보존
 

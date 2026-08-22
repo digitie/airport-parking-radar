@@ -63,7 +63,14 @@ async def fetch_lot_history(
             "/parking/history",
             {"parking_lot_id": lot["id"], "days": days},
         )
-    return airport_code, lot, payload.get("items", [])
+    if not isinstance(payload, dict) or not isinstance(payload.get("items"), list):
+        raise ValueError(f"{airport_code}/{lot['id']} history response has no items list")
+    items = payload["items"]
+    required_fields = {"observed_at", "occupied_spaces", "total_spaces", "available_spaces"}
+    for index, item in enumerate(items):
+        if not isinstance(item, dict) or not required_fields.issubset(item):
+            raise ValueError(f"{airport_code}/{lot['id']} history item {index} has an invalid shape")
+    return airport_code, lot, items
 
 
 async def upsert_reference_data(session: AsyncSession, airport_payload: dict[str, Any]) -> tuple[Airport, dict[int, ParkingLot]]:
@@ -98,12 +105,18 @@ async def upsert_reference_data(session: AsyncSession, airport_payload: dict[str
             # The live collector uses provider slugs while the legacy API uses
             # numeric IDs. Match the existing named lot before creating a new
             # row so a repeated migration cannot split its history.
-            lot = await session.scalar(
-                select(ParkingLot)
-                .where(ParkingLot.airport_id == airport.id, ParkingLot.name == lot_payload["name"])
-                .order_by(ParkingLot.id)
-                .limit(1)
-            )
+            named_lots = (
+                await session.scalars(
+                    select(ParkingLot)
+                    .where(ParkingLot.airport_id == airport.id, ParkingLot.name == lot_payload["name"])
+                    .order_by(ParkingLot.id)
+                )
+            ).all()
+            if len(named_lots) > 1:
+                raise ValueError(
+                    f"ambiguous parking lot identity for {airport.code}/{lot_payload['name']!r}; refusing implicit merge"
+                )
+            lot = named_lots[0] if named_lots else None
         if lot is None:
             lot = ParkingLot(
                 airport_id=airport.id,
@@ -136,6 +149,14 @@ async def import_history(args: argparse.Namespace) -> int:
 
     async with httpx.AsyncClient(timeout=settings.api_timeout_seconds) as client:
         airports_payload = await fetch_json(client, base_url, "/airports")
+        if not isinstance(airports_payload, list) or not airports_payload:
+            raise ValueError("/airports returned no airport list")
+        for airport in airports_payload:
+            if not isinstance(airport, dict) or not airport.get("code") or not isinstance(airport.get("parking_lots"), list):
+                raise ValueError("/airports returned an invalid airport or parking_lots shape")
+            for lot in airport["parking_lots"]:
+                if not isinstance(lot, dict) or lot.get("id") is None or not lot.get("name"):
+                    raise ValueError("/airports returned an invalid parking lot shape")
         history_tasks = []
         semaphore = asyncio.Semaphore(args.concurrency)
         for airport in airports_payload:

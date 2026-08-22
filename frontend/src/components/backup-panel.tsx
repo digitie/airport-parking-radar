@@ -2,13 +2,13 @@
 
 import { useCallback, useEffect, useState } from "react";
 
-import type { BackupFile } from "@/lib/types";
+import type { BackupFile, BackupRestoreResponse } from "@/lib/types";
 
 type BackupPanelProps = {
   listBackups: () => Promise<{ items: BackupFile[] }>;
   createBackup: () => Promise<BackupFile>;
   downloadBackup: (filename: string) => Promise<Blob>;
-  restoreBackup: (file: File) => Promise<{ status: "restored"; backup: BackupFile }>;
+  restoreBackup: (file: File) => Promise<BackupRestoreResponse>;
 };
 
 function formatBytes(sizeBytes: number): string {
@@ -101,7 +101,10 @@ export function BackupPanel({ listBackups, createBackup, downloadBackup, restore
     setMessage(null);
     try {
       const restored = await restoreBackup(file);
-      setMessage(`복원했습니다: ${restored.backup.filename}. 화면을 새로고침하면 최신 상태를 확인할 수 있습니다.`);
+      const rollback = restored.pre_restore_backup
+        ? `복원 전 자동 백업: ${restored.pre_restore_backup.filename}. `
+        : "복원 전 자동 백업이 생성되었습니다. ";
+      setMessage(`${rollback}복원했습니다: ${restored.backup.filename}. 화면을 새로고침하면 최신 상태를 확인할 수 있습니다.`);
       await refresh();
     } catch (caughtError) {
       setError(caughtError instanceof Error ? caughtError.message : "백업을 복원하지 못했습니다.");
@@ -117,6 +120,7 @@ export function BackupPanel({ listBackups, createBackup, downloadBackup, restore
         type="button"
         className="backup-panel-trigger"
         aria-expanded={open}
+        aria-controls="backup-panel-body"
         onClick={() => setOpen((current) => !current)}
       >
         <span>
@@ -131,7 +135,7 @@ export function BackupPanel({ listBackups, createBackup, downloadBackup, restore
       </p>
 
       {open ? (
-        <div className="backup-panel-body">
+        <div className="backup-panel-body" id="backup-panel-body">
           <p className="backup-panel-note">
             복원은 현재 PostgreSQL 데이터를 덮어쓰며, 서버가 자동 백업을 먼저 만든 뒤 진행합니다.
           </p>

@@ -23,6 +23,7 @@ from app.models import AnalyticsCache, Airport, ParkingFeeRule, ParkingLot, Park
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--dry-run", action="store_true")
+    parser.add_argument("--apply", action="store_true", help="apply the reviewed merge; default is a read-only dry run")
     return parser.parse_args()
 
 
@@ -45,6 +46,21 @@ async def merge_lot(session: AsyncSession, canonical: ParkingLot, duplicate: Par
             )
         )
         if existing is not None:
+            comparable_fields = (
+                "airport_id",
+                "source",
+                "observed_at",
+                "occupied_spaces",
+                "total_spaces",
+                "available_spaces",
+                "congestion_label",
+                "congestion_ratio",
+            )
+            if any(getattr(existing, field) != getattr(snapshot, field) for field in comparable_fields):
+                raise ValueError(
+                    "conflicting duplicate snapshot; refusing to delete data for "
+                    f"lot={duplicate.id} observed_at={snapshot.observed_at.isoformat()} source={snapshot.source}"
+                )
             await session.delete(snapshot)
             deleted_snapshots += 1
             continue
@@ -111,7 +127,8 @@ async def reconcile(args: argparse.Namespace) -> int:
                     deleted_snapshots += deleted
                     moved_fee_rules += fees
 
-        if args.dry_run:
+        apply_changes = args.apply and not args.dry_run
+        if not apply_changes:
             await session.rollback()
         else:
             await session.commit()
@@ -120,7 +137,7 @@ async def reconcile(args: argparse.Namespace) -> int:
     print(
         f"merged_lots={merged} moved_snapshots={moved_snapshots} "
         f"deleted_conflicting_snapshots={deleted_snapshots} moved_fee_rules={moved_fee_rules} "
-        f"dry_run={args.dry_run}"
+        f"dry_run={not apply_changes}"
     )
     return 0
 

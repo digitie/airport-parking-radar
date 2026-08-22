@@ -303,6 +303,7 @@ class BackupListResponse(BaseModel):
 class BackupRestoreResponse(BaseModel):
     status: Literal["restored"]
     backup: BackupFile
+    pre_restore_backup: BackupFile
 
 
 class DashboardBootstrapResponse(BaseModel):
