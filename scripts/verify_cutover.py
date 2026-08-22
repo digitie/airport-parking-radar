@@ -112,7 +112,8 @@ async def verify(args: argparse.Namespace) -> int:
                 failures.append(f"{airport_code}/{lot_name}: target request failed: {error}")
                 continue
             if target_latest is None:
-                failures.append(f"{airport_code}/{lot_name}: target has no observation")
+                if source_latest is not None:
+                    failures.append(f"{airport_code}/{lot_name}: target has no observation")
                 continue
             if source_latest is not None and target_latest < source_latest:
                 failures.append(
